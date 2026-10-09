@@ -59,6 +59,17 @@ Critério de nota: somente assignedGrade (nota devolvida); sem nota ('-') não �
 - Alunos em ordem alfabética (sem diferenciar acentos/maiúsculas).
 - A API **não expõe a nota geral** calculada pelo Classroom; a soma é feita por esta aplicação. Pesos/categorias podem ser adicionados implementando `IGradingPolicy` (`Reporting/IGradingPolicy.cs`).
 
+## 🔐 Por que preciso de credenciais?
+
+A Google Classroom API **não é pública**: as turmas, alunos e notas pertencem à sua conta, e o Google só entrega esses dados a um aplicativo **identificado** e **autorizado por você**. Isso exige duas coisas diferentes:
+
+| O quê | Para quê | Onde fica |
+|---|---|---|
+| **`credentials.json`** (cliente OAuth Desktop) | **Identifica o aplicativo** perante o Google (qual projeto, quais escopos, quota). Sozinho **não dá acesso a nenhum dado**. | Você baixa do Google Cloud e salva em `%APPDATA%\ClassroomGradeReport\credentials.json` (ou passa `--credentials <caminho>`) |
+| **Token** (gerado na autorização) | Prova que **você** permitiu que o app leia suas turmas (somente leitura). É renovado automaticamente. | Criado na primeira execução em `%APPDATA%\ClassroomGradeReport	oken\` |
+
+Por isso o app pede o `credentials.json` toda vez que precisa autenticar, e por isso o `--credentials` existe: para você guardar o arquivo onde preferir. Não há chave de API nem senha envolvidas, e o `credentials.json` **não deve ser compartilhado nem commitado** (ele contém o segredo do cliente do seu projeto).
+
 ## ☁️ Configuração no Google Cloud
 
 1. Acesse o [Google Cloud Console](https://console.cloud.google.com/) e crie um **projeto**.
@@ -124,8 +135,9 @@ Exemplos:
 dotnet run --project ClassroomGradeReport
 dotnet run --project ClassroomGradeReport -- --course "Matemática" --csv notas.csv
 dotnet run --project ClassroomGradeReport -- --all-courses --csv relatorios
+# credencial em outro local (ex.: ao lado do projeto) + todas as turmas + um CSV por turma na pasta "relatorios"
+dotnet run --project ClassroomGradeReport -- --credentials ClassroomGradeReport\credenciais.json --all-courses --csv relatorios
 dotnet run --project ClassroomGradeReport -- --all-courses --include-inactive
-dotnet run --project ClassroomGradeReport -- --logout
 dotnet run --project ClassroomGradeReport -- --logout
 dotnet run --project ClassroomGradeReport -- --course 123456789 --include-drafts --missing-as-zero
 ```
