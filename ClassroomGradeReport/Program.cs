@@ -8,6 +8,8 @@ using ClassroomGradeReport.Reporting;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
 
+const int MaxParallelCourses = 3;
+
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
 using var cts = new CancellationTokenSource();
@@ -56,9 +58,21 @@ try
     var builder = services.GetRequiredService<GradeReportBuilder>();
     var reportOptions = new ReportOptions(options.IncludeDrafts, options.MissingAsZero);
 
-    foreach (var course in selected)
+    // Load courses concurrently (bounded, to respect API quota); render/write in the original order.
+    using var gate = new SemaphoreSlim(MaxParallelCourses);
+    var loads = selected.Select(async course =>
     {
-        var data = await console.Status().StartAsync($"Carregando {Markup.Escape(course.Name)}...", _ => gateway.LoadCourseDataAsync(course, cts.Token));
+        await gate.WaitAsync(cts.Token);
+        try { return await gateway.LoadCourseDataAsync(course, cts.Token); }
+        finally { gate.Release(); }
+    }).ToList();
+
+    for (var i = 0; i < selected.Count; i++)
+    {
+        var course = selected[i];
+        var data = loads[i].IsCompleted
+            ? await loads[i]
+            : await console.Status().StartAsync($"Carregando {Markup.Escape(course.Name)}...", _ => loads[i]);
         var report = builder.Build(data, reportOptions);
 
         ConsoleReportRenderer.Render(report, console);

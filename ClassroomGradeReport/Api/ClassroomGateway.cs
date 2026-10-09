@@ -10,14 +10,15 @@ namespace ClassroomGradeReport.Api;
 /// <summary>Thin wrapper over Google.Apis.Classroom.v1. All list calls follow nextPageToken.</summary>
 public sealed class ClassroomGateway(IAuthenticator authenticator) : IClassroomGateway
 {
-    private ClassroomService? _service;
-
-    private async Task<ClassroomService> GetServiceAsync(CancellationToken ct) =>
-        _service ??= new ClassroomService(new BaseClientService.Initializer
+    // Lazy<Task> guarantees the OAuth flow runs exactly once even when called concurrently.
+    private readonly Lazy<Task<ClassroomService>> _service = new(async () =>
+        new ClassroomService(new BaseClientService.Initializer
         {
-            HttpClientInitializer = await authenticator.AuthorizeAsync(ct),
+            HttpClientInitializer = await authenticator.AuthorizeAsync(CancellationToken.None),
             ApplicationName = "ClassroomGradeReport",
-        });
+        }));
+
+    private Task<ClassroomService> GetServiceAsync(CancellationToken ct) => _service.Value.WaitAsync(ct);
 
     public async Task<IReadOnlyList<Course>> ListTeacherCoursesAsync(bool activeOnly, CancellationToken ct)
     {
@@ -41,10 +42,12 @@ public sealed class ClassroomGateway(IAuthenticator authenticator) : IClassroomG
     public async Task<ClassroomData> LoadCourseDataAsync(Course course, CancellationToken ct)
     {
         var svc = await GetServiceAsync(ct);
-        var students = await LoadStudentsAsync(svc, course.Id, ct);
-        var work = await LoadCourseWorkAsync(svc, course.Id, ct);
-        var subs = await LoadSubmissionsAsync(svc, course.Id, ct);
-        return new ClassroomData(course, students, work, subs);
+        // The three lists are independent: fetch them concurrently (pages within a list stay sequential).
+        var students = LoadStudentsAsync(svc, course.Id, ct);
+        var work = LoadCourseWorkAsync(svc, course.Id, ct);
+        var subs = LoadSubmissionsAsync(svc, course.Id, ct);
+        await Task.WhenAll(students, work, subs);
+        return new ClassroomData(course, await students, await work, await subs);
     }
 
     private static async Task<List<Student>> LoadStudentsAsync(ClassroomService svc, string courseId, CancellationToken ct)
