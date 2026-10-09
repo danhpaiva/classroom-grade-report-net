@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ClassroomGradeReport.Tests/ClassroomGradeReport.Tests.csproj" />
+  <Project Path="ClassroomGradeReport/ClassroomGradeReport.csproj" />
+</Solution>

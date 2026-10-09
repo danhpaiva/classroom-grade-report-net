@@ -426,3 +426,15 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# --- Secrets / OAuth (NEVER commit) ---
+credentials.json
+*credentials*.json
+client_secret*.json
+token/
+token.json
+Google.Apis.Auth.OAuth2.Responses.TokenResponse-*
+
+# Generated grade reports (contain student data)
+*.csv
+credenciais*.json
