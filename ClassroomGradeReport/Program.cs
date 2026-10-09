@@ -53,6 +53,7 @@ try
     if (options.CsvPath is { } csvPath) exports.Add(new("CSV", "--csv", ".csv", csvPath, CsvReportWriter.WriteAsync));
     if (options.XlsxPath is { } xlsxPath) exports.Add(new("Excel", "--xlsx", ".xlsx", xlsxPath, XlsxReportWriter.WriteAsync));
     if (options.TxtPath is { } txtPath) exports.Add(new("TXT", "--txt", ".txt", txtPath, TxtReportWriter.WriteAsync));
+    if (options.HtmlPath is { } htmlPath) exports.Add(new("HTML", "--html", ".html", htmlPath, HtmlReportWriter.WriteAsync));
     if (options.AllCourses)
         foreach (var e in exports.Where(e => e.Path.EndsWith(e.Extension, StringComparison.OrdinalIgnoreCase)))
             throw new UserFacingException($"Com --all-courses, {e.Option} deve ser uma pasta (um arquivo por turma), não um arquivo {e.Extension}.");

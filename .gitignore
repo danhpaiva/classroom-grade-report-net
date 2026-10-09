@@ -439,4 +439,5 @@ Google.Apis.Auth.OAuth2.Responses.TokenResponse-*
 *.csv
 *.xlsx
 *.txt
+*.html
 credenciais*.json
