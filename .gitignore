@@ -437,4 +437,6 @@ Google.Apis.Auth.OAuth2.Responses.TokenResponse-*
 
 # Generated grade reports (contain student data)
 *.csv
+*.xlsx
+*.txt
 credenciais*.json

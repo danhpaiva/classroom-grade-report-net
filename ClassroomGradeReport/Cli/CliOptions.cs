@@ -6,6 +6,8 @@ public record CliOptions
 {
     public string? Course { get; init; }
     public string? CsvPath { get; init; }
+    public string? XlsxPath { get; init; }
+    public string? TxtPath { get; init; }
     public string? CredentialsPath { get; init; }
     public bool IncludeDrafts { get; init; }
     public bool MissingAsZero { get; init; }
@@ -24,6 +26,10 @@ public record CliOptions
           --course <id|nome>       Turma a usar (ID ou parte do nome); pula o menu de seleção
           --csv <caminho>          Exporta o relatório em CSV (separador ';', UTF-8 com BOM);
                                    com --all-courses, é uma pasta e gera um CSV por turma
+          --xlsx <caminho>         Exporta o relatório em Excel (.xlsx); pode ser usado junto com --csv;
+                                   com --all-courses, é uma pasta e gera um .xlsx por turma
+          --txt <caminho>          Exporta o relatório em texto simples (.txt, tabela alinhada, UTF-8 com BOM);
+                                   pode ser combinado com --csv/--xlsx; com --all-courses, é uma pasta
           --all-courses            Gera o relatório de todas as turmas (sem menu)
           --include-drafts         Usa a nota rascunho (draftGrade) quando não houver nota devolvida (assignedGrade)
           --missing-as-zero        Trata atividade sem nota como 0 (por padrão ela é ignorada e exibida como "-")
@@ -51,6 +57,8 @@ public record CliOptions
             {
                 "--course" => o with { Course = Value() },
                 "--csv" => o with { CsvPath = Value() },
+                "--xlsx" => o with { XlsxPath = Value() },
+                "--txt" => o with { TxtPath = Value() },
                 "--credentials" => o with { CredentialsPath = Value() },
                 "--include-drafts" => o with { IncludeDrafts = true },
                 "--missing-as-zero" => o with { MissingAsZero = true },

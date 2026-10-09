@@ -30,15 +30,6 @@ public static class CsvReportWriter
         await File.WriteAllTextAsync(path, Render(report), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true), ct);
     }
 
-    /// <summary>Safe, unique file name for a course: "{name}-{id}.csv".</summary>
-    public static string FileNameFor(string courseName, string courseId)
-    {
-        var invalid = Path.GetInvalidFileNameChars();
-        var name = new string(courseName.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim().TrimEnd('.');
-        if (name.Length > 80) name = name[..80].TrimEnd();
-        return $"{(name.Length == 0 ? "turma" : name)}-{courseId}.csv";
-    }
-
     private static void AppendLine(StringBuilder sb, IEnumerable<string> fields) =>
         sb.Append(string.Join(';', fields.Select(Escape))).Append("\r\n");
 

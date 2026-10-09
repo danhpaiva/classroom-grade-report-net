@@ -49,8 +49,13 @@ try
 
     if (options.AllCourses && options.Course is not null)
         throw new UserFacingException("Use --course ou --all-courses, não os dois.");
-    if (options.AllCourses && options.CsvPath is { } p && p.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-        throw new UserFacingException("Com --all-courses, --csv deve ser uma pasta (um CSV por turma), não um arquivo .csv.");
+    var exports = new List<Export>();
+    if (options.CsvPath is { } csvPath) exports.Add(new("CSV", "--csv", ".csv", csvPath, CsvReportWriter.WriteAsync));
+    if (options.XlsxPath is { } xlsxPath) exports.Add(new("Excel", "--xlsx", ".xlsx", xlsxPath, XlsxReportWriter.WriteAsync));
+    if (options.TxtPath is { } txtPath) exports.Add(new("TXT", "--txt", ".txt", txtPath, TxtReportWriter.WriteAsync));
+    if (options.AllCourses)
+        foreach (var e in exports.Where(e => e.Path.EndsWith(e.Extension, StringComparison.OrdinalIgnoreCase)))
+            throw new UserFacingException($"Com --all-courses, {e.Option} deve ser uma pasta (um arquivo por turma), não um arquivo {e.Extension}.");
 
     IReadOnlyList<Course> selected = options.AllCourses ? courses
         : [options.Course is { } query ? FindCourse(courses, query) : ConsoleReportRenderer.PickCourse(courses, console)!];
@@ -77,11 +82,13 @@ try
 
         ConsoleReportRenderer.Render(report, console);
 
-        if (options.CsvPath is { } csv)
+        foreach (var export in exports)
         {
-            var target = options.AllCourses ? Path.Combine(csv, CsvReportWriter.FileNameFor(course.Name, course.Id)) : csv;
-            await CsvReportWriter.WriteAsync(report, target, cts.Token);
-            console.MarkupLine($"[green]CSV gerado:[/] {Markup.Escape(Path.GetFullPath(target))}");
+            var target = options.AllCourses
+                ? Path.Combine(export.Path, ReportFormatting.FileNameFor(course.Name, course.Id, export.Extension))
+                : export.Path;
+            await export.Write(report, target, cts.Token);
+            console.MarkupLine($"[green]{export.Label} gerado:[/] {Markup.Escape(Path.GetFullPath(target))}");
         }
         console.WriteLine();
     }
@@ -112,3 +119,6 @@ static Course FindCourse(IReadOnlyList<Course> courses, string query)
             $"Mais de uma turma corresponde a \"{query}\": {string.Join("; ", matches.Select(m => $"{m.Name} [{m.Id}]"))}. Use o ID."),
     };
 }
+
+/// <summary>One requested export format: where to write it and how.</summary>
+record Export(string Label, string Option, string Extension, string Path, Func<GradeReport, string, CancellationToken, Task> Write);

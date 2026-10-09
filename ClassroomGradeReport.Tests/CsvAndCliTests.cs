@@ -60,9 +60,12 @@ public class CsvAndCliTests
     [Fact]
     public void Csv_FileName_IsSanitizedAndIncludesId()
     {
-        Assert.Equal("Mat_ 9_A-123.csv", CsvReportWriter.FileNameFor("Mat/ 9:A", "123").Replace(":", "_"));
-        Assert.Equal("turma-5.csv", CsvReportWriter.FileNameFor("  ", "5"));
+        Assert.Equal("Mat_ 9_A-123.csv", ReportFormatting.FileNameFor("Mat/ 9:A", "123", ".csv").Replace(":", "_"));
+        Assert.Equal("turma-5.xlsx", ReportFormatting.FileNameFor("  ", "5", ".xlsx"));
     }
+
+    [Fact]
+    public void Cli_ParsesXlsx() => Assert.Equal("a.xlsx", CliOptions.Parse(["--xlsx", "a.xlsx"]).XlsxPath);
 
     [Theory]
     [InlineData("--nope")]

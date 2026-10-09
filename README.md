@@ -30,7 +30,7 @@
 - 🧮 Uma linha por aluno, uma coluna por atividade, com **total**, **total possível** e **percentual**.
 - 🚫 *Sem nota não é zero*: aparece como `-` (ou use `--missing-as-zero`).
 - 📝 Notas devolvidas (`assignedGrade`) por padrão; rascunhos opcionais com `--include-drafts`.
-- 📁 Exporta **CSV** pronto para o Excel pt-BR (`;`, vírgula decimal, UTF-8 com BOM), inclusive um arquivo por turma.
+- 📁 Exporta **CSV** pronto para o Excel pt-BR (`;`, vírgula decimal, UTF-8 com BOM) , **Excel (`.xlsx`)** com números reais e formatação e/ou **texto (`.txt`)** alinhado, inclusive um arquivo por turma.
 - 🔒 **Somente leitura**: nenhum escopo de escrita; nada sai da máquina além das chamadas ao Google.
 - 🔁 Paginação completa, retry com backoff para 429/5xx e mensagens de erro claras em português.
 - 🧩 Cálculo puro e testável, com ponto de extensão para pesos/categorias (`IGradingPolicy`).
@@ -121,7 +121,9 @@ dotnet run --project ClassroomGradeReport -- --help
 |---|---|
 | `--course <id\|nome>` | Turma (ID ou parte do nome); pula o menu |
 | `--csv <caminho>` | Exporta CSV (`;`, vírgula decimal, UTF-8 com BOM). Com `--all-courses`, é uma pasta |
-| `--all-courses` | Relatório de todas as turmas, sem menu; com `--csv <pasta>` gera um CSV por turma (`Nome-ID.csv`). Não combina com `--course` |
+| `--xlsx <caminho>` | Exporta Excel (`.xlsx`); pode ser usado junto com `--csv`. Com `--all-courses`, é uma pasta |
+| `--txt <caminho>` | Exporta texto simples (`.txt`, tabela alinhada, UTF-8 com BOM); combina com `--csv`/`--xlsx`. Com `--all-courses`, é uma pasta |
+| `--all-courses` | Relatório de todas as turmas, sem menu; com `--csv <pasta>` / `--xlsx <pasta>` / `--txt <pasta>` gera um arquivo por turma (`Nome-ID.csv` / `.xlsx` / `.txt`). Não combina com `--course` |
 | `--include-drafts` | Usa `draftGrade` quando não houver `assignedGrade` |
 | `--missing-as-zero` | Atividade sem nota vale 0 |
 | `--include-inactive` | Inclui turmas não ativas (arquivadas etc.); por padrão só as ACTIVE |
@@ -135,6 +137,8 @@ Exemplos:
 dotnet run --project ClassroomGradeReport
 dotnet run --project ClassroomGradeReport -- --course "Matemática" --csv notas.csv
 dotnet run --project ClassroomGradeReport -- --all-courses --csv relatorios
+# CSV, Excel e TXT ao mesmo tempo
+dotnet run --project ClassroomGradeReport -- --all-courses --csv relatorios --xlsx relatorios --txt relatorios
 # credencial em outro local (ex.: ao lado do projeto) + todas as turmas + um CSV por turma na pasta "relatorios"
 dotnet run --project ClassroomGradeReport -- --credentials ClassroomGradeReport\credenciais.json --all-courses --csv relatorios
 dotnet run --project ClassroomGradeReport -- --all-courses --include-inactive
@@ -144,7 +148,11 @@ dotnet run --project ClassroomGradeReport -- --course 123456789 --include-drafts
 
 Erros de API 429/5xx são repetidos com backoff exponencial.
 
-**CSV:** colunas `Aluno`, `E-mail`, uma por atividade (`Título (/máximo)`), `Total`, `Total possível` e `Percentual`. Textos que começam com `=`, `+` ou `@` recebem um `'` na frente para evitar injeção de fórmula no Excel. Os arquivos contêm dados de alunos: o `.gitignore` ignora `*.csv`; evite gravá-los em pastas sincronizadas ou compartilhadas.
+**Excel (`.xlsx`):** a aba **Notas** tem cabeçalho formatado, linha e colunas de aluno/e-mail congeladas, e **números reais** (dá para somar, ordenar e filtrar; o percentual é uma fração formatada como `0,0%`). Notas ausentes ficam como `-`. A aba **Critério** registra a turma, o critério de nota usado e os avisos. Nomes e títulos são gravados sempre como texto, nunca como fórmula.
+
+**TXT:** cabeçalho com a turma, o critério de nota e os avisos, seguido de uma tabela com colunas alinhadas (nomes à esquerda, números à direita), própria para ler no Bloco de Notas ou colar em e-mails. Notas ausentes aparecem como `-`.
+
+**CSV:** colunas `Aluno`, `E-mail`, uma por atividade (`Título (/máximo)`), `Total`, `Total possível` e `Percentual`. Textos que começam com `=`, `+` ou `@` recebem um `'` na frente para evitar injeção de fórmula no Excel. Os arquivos contêm dados de alunos: o `.gitignore` ignora `*.csv`, `*.xlsx` e `*.txt`; evite gravá-los em pastas sincronizadas ou compartilhadas.
 
 ## ✅ Testes
 
@@ -152,7 +160,7 @@ Erros de API 429/5xx são repetidos com backoff exponencial.
 dotnet test
 ```
 
-Os testes cobrem o cálculo (nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação), o CSV e o parser de argumentos. Não chamam a API real.
+Os testes cobrem o cálculo (nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação), o CSV, o Excel, o TXT e o parser de argumentos. Não chamam a API real.
 
 ## 🗂️ Estrutura
 
