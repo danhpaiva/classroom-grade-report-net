@@ -1,11 +1,41 @@
-# ClassroomGradeReport
+<div align="center">
 
-Aplicação de console (.NET 10) que consulta a **Google Classroom API** e gera o relatório de notas de uma turma: uma linha por aluno, uma coluna por atividade, e ao final **total**, **total possível** e **percentual**. Pode exportar o resultado para CSV (compatível com o Excel em pt-BR).
+# 📊 ClassroomGradeReport
 
-- Acesso **somente leitura** (nenhum escopo de escrita).
-- Nada sai da máquina além das chamadas à API do Google. Tokens e notas não são registrados em logs.
+**Relatório de notas do Google Classroom direto no terminal — somente leitura, rápido e pronto para o Excel.**
 
-## Exemplo de saída
+![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)
+![C#](https://img.shields.io/badge/C%23-14-239120?logo=csharp&logoColor=white)
+![Google Classroom API](https://img.shields.io/badge/Google%20Classroom-API%20v1-34A853?logo=googleclassroom&logoColor=white)
+![OAuth 2.0](https://img.shields.io/badge/OAuth-2.0%20Desktop-4285F4?logo=google&logoColor=white)
+![Somente leitura](https://img.shields.io/badge/acesso-somente%20leitura-success)
+![Spectre.Console](https://img.shields.io/badge/UI-Spectre.Console-blueviolet)
+![Testes](https://img.shields.io/badge/testes-xUnit-5E2750)
+![Plataforma](https://img.shields.io/badge/plataforma-Windows-0078D6?logo=windows&logoColor=white)
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-yellow.svg)](LICENSE)
+
+[Exemplo](#-exemplo-de-saída) •
+[Configuração](#-configuração-no-google-cloud) •
+[Como rodar](#-como-rodar) •
+[Problemas?](#-solução-de-problemas) •
+[Testes](#-testes)
+
+</div>
+
+---
+
+## ✨ Recursos
+
+- 🎓 Lista suas turmas (professor) e deixa escolher em um menu — ou use `--course` / `--all-courses`.
+- 🧮 Uma linha por aluno, uma coluna por atividade, com **total**, **total possível** e **percentual**.
+- 🚫 *Sem nota não é zero*: aparece como `-` (ou use `--missing-as-zero`).
+- 📝 Notas devolvidas (`assignedGrade`) por padrão; rascunhos opcionais com `--include-drafts`.
+- 📁 Exporta **CSV** pronto para o Excel pt-BR (`;`, vírgula decimal, UTF-8 com BOM), inclusive um arquivo por turma.
+- 🔒 **Somente leitura**: nenhum escopo de escrita; nada sai da máquina além das chamadas ao Google.
+- 🔁 Paginação completa, retry com backoff para 429/5xx e mensagens de erro claras em português.
+- 🧩 Cálculo puro e testável, com ponto de extensão para pesos/categorias (`IGradingPolicy`).
+
+## 🖥️ Exemplo de saída
 
 ```
 Turma: Matemática 9A
@@ -20,7 +50,7 @@ Critério de nota: somente assignedGrade (nota devolvida); sem nota ('-') não �
 2 aluno(s), 2 atividade(s).
 ```
 
-## Regras de cálculo
+## 📐 Regras de cálculo
 
 - **Nota considerada:** por padrão, `assignedGrade` (nota já devolvida ao aluno). Com `--include-drafts`, usa `draftGrade` quando `assignedGrade` estiver ausente. O critério usado aparece no cabeçalho do relatório.
 - **Sem nota não é zero:** aparece como `-` e não entra na soma. O **total possível** de cada aluno soma o `maxPoints` apenas das atividades *com nota* para ele. Com `--missing-as-zero`, atividade sem nota vale 0 e o `maxPoints` entra no total possível.
@@ -29,7 +59,7 @@ Critério de nota: somente assignedGrade (nota devolvida); sem nota ('-') não �
 - Alunos em ordem alfabética (sem diferenciar acentos/maiúsculas).
 - A API **não expõe a nota geral** calculada pelo Classroom; a soma é feita por esta aplicação. Pesos/categorias podem ser adicionados implementando `IGradingPolicy` (`Reporting/IGradingPolicy.cs`).
 
-## Configuração no Google Cloud
+## ☁️ Configuração no Google Cloud
 
 1. Acesse o [Google Cloud Console](https://console.cloud.google.com/) e crie um **projeto**.
 2. Em **APIs e serviços > Biblioteca**, ative a **Google Classroom API**.
@@ -47,7 +77,7 @@ Critério de nota: somente assignedGrade (nota devolvida); sem nota ('-') não �
 
 > **Atenção — modo "Testing":** com o app em *Testing* e tipo de usuário Externo, o **refresh token expira em 7 dias** e será preciso autorizar de novo. Para contornar: publique o app como **"In production"** (uso pessoal; o Google mostrará um aviso de "app não verificado", que você pode aceitar pois o app é seu) ou, se a conta for Workspace, use o tipo **"Internal"**, sem expiração.
 
-## Autorização (primeira execução)
+## 🔑 Autorização (primeira execução)
 
 Na primeira execução o app **imprime no console o link de autorização** (ele não abre o navegador sozinho). Copie o link e abra no navegador/perfil — ou janela anônima — onde está logada a conta que tem as turmas. O link só contém o ID do cliente e os escopos, nenhum token. Ao concluir, o Google redireciona para `http://127.0.0.1:<porta>/authorize/` e o app recebe o código; por isso o navegador precisa estar na **mesma máquina** do app.
 
@@ -59,7 +89,7 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 
 **Nunca commite** `credentials.json` nem o diretório do token (o `.gitignore` também cobre `client_secret*.json`, `credenciais*.json`, `token/` e `*.csv`).
 
-## Solução de problemas
+## 🛠️ Solução de problemas
 
 | Sintoma | Causa / solução |
 |---|---|
@@ -70,7 +100,7 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 | Autorização expirou após ~7 dias | App em *Testing*; publique como "In production" ou refaça a autorização (`--logout`). |
 | 429 / cota | O app tenta de novo com backoff; se persistir, aguarde e execute novamente. |
 
-## Como rodar
+## 🚀 Como rodar
 
 ```bash
 dotnet run --project ClassroomGradeReport -- --help
@@ -104,7 +134,7 @@ Erros de API 429/5xx são repetidos com backoff exponencial.
 
 **CSV:** colunas `Aluno`, `E-mail`, uma por atividade (`Título (/máximo)`), `Total`, `Total possível` e `Percentual`. Textos que começam com `=`, `+` ou `@` recebem um `'` na frente para evitar injeção de fórmula no Excel. Os arquivos contêm dados de alunos: o `.gitignore` ignora `*.csv`; evite gravá-los em pastas sincronizadas ou compartilhadas.
 
-## Testes
+## ✅ Testes
 
 ```bash
 dotnet test
@@ -112,9 +142,13 @@ dotnet test
 
 Os testes cobrem o cálculo (nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação), o CSV e o parser de argumentos. Não chamam a API real.
 
-## Estrutura
+## 🗂️ Estrutura
 
 ```
 ClassroomGradeReport/        Program.cs, Cli/, Auth/, Api/, Domain/, Reporting/ (lógica pura), Rendering/, Errors/
 ClassroomGradeReport.Tests/  xUnit
 ```
+
+## 📄 Licença
+
+Distribuído sob a licença [MIT](LICENSE).
