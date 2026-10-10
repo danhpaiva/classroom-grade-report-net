@@ -42,6 +42,17 @@
 - Uma conta Google com turmas no Classroom em que você é **professor(a)**.
 - Um projeto no Google Cloud com a credencial OAuth (veja a seção "Configuração no Google Cloud").
 
+## Criar credenciais
+> https://console.cloud.google.com/
+> https://console.cloud.google.com/apis/api/classroom.googleapis.com/credentials?project=consumerclassroom
+
+- Ajude-me a escolher
+- Dados do Usuario
+- Salvar e continuar
+- Id do cliente: app para computador
+- Baixar suas credenciais
+> Download this credential information in JSON format. Elas estarão sempre disponíveis para você na página de credenciais .
+
 Para obter o código e compilar:
 
 ```bash
@@ -80,10 +91,10 @@ Critério de nota: somente assignedGrade (nota devolvida); sem nota ('-') não �
 
 A Google Classroom API **não é pública**: as turmas, alunos e notas pertencem à sua conta, e o Google só entrega esses dados a um aplicativo **identificado** e **autorizado por você**. Isso exige duas coisas diferentes:
 
-| O quê | Para quê | Onde fica |
-|---|---|---|
+| O quê                                          | Para quê                                                                                                                    | Onde fica                                                                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | **`credentials.json`** (cliente OAuth Desktop) | **Identifica o aplicativo** perante o Google (qual projeto, quais escopos, quota). Sozinho **não dá acesso a nenhum dado**. | Você baixa do Google Cloud e salva em `%APPDATA%\ClassroomGradeReport\credentials.json` (ou passa `--credentials <caminho>`) |
-| **Token** (gerado na autorização) | Prova que **você** permitiu que o app leia suas turmas (somente leitura). É renovado automaticamente. | Criado na primeira execução em `%APPDATA%\ClassroomGradeReport\token\` |
+| **Token** (gerado na autorização)              | Prova que **você** permitiu que o app leia suas turmas (somente leitura). É renovado automaticamente.                       | Criado na primeira execução em `%APPDATA%\ClassroomGradeReport\token\`                                                       |
 
 Por isso o app pede o `credentials.json` toda vez que precisa autenticar, e por isso o `--credentials` existe: para você guardar o arquivo onde preferir. Não há chave de API nem senha envolvidas, e o `credentials.json` **não deve ser compartilhado nem commitado** (ele contém o segredo do cliente do seu projeto).
 
@@ -126,17 +137,17 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 
 ## 🛠️ Solução de problemas
 
-| Sintoma | Causa / solução |
-|---|---|
+| Sintoma                                                                                   | Causa / solução                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `O caminho do arquivo fornecido não existe: ClassroomGradeReport.` (mensagem do `dotnet`) | Você está dentro da pasta do projeto e usou `--project ClassroomGradeReport`. Rode da raiz do repositório ou omita o `--project` (veja [Onde executar os comandos](#onde-executar-os-comandos)). |
-| `Arquivo credentials.json não encontrado` | Salve o JSON em `%APPDATA%\ClassroomGradeReport\credentials.json` ou use `--credentials <caminho>` / `CLASSROOM_CREDENTIALS_PATH`. |
-| `Erro 403: access_denied` / "app não concluiu a verificação" | App em *Testing*: adicione o e-mail em **Público-alvo > Usuários de teste** (ou publique o app). |
-| `Nenhuma turma encontrada em que você seja professor(a)` | Você autorizou com uma conta sem turmas (ou só com turmas arquivadas: use `--include-inactive`). Rode `--logout` e autorize com a conta certa. |
-| API não habilitada (403) | Ative a **Google Classroom API** no projeto. |
-| Autorização expirou após ~7 dias | App em *Testing*; publique como "In production" ou refaça a autorização (`--logout`). |
-| O link de autorização termina em erro de conexão com `127.0.0.1` | O navegador precisa estar na **mesma máquina** do app e a porta não pode estar bloqueada pelo firewall; refaça o fluxo com `--logout`. |
-| Criei `--csv relatorios` para uma turma e saiu um arquivo sem extensão | Para uma turma o caminho é um **arquivo** (`notas.csv`); use uma **pasta** só com `--all-courses`. |
-| 429 / cota | O app tenta de novo com backoff; se persistir, aguarde e execute novamente. |
+| `Arquivo credentials.json não encontrado`                                                 | Salve o JSON em `%APPDATA%\ClassroomGradeReport\credentials.json` ou use `--credentials <caminho>` / `CLASSROOM_CREDENTIALS_PATH`.                                                               |
+| `Erro 403: access_denied` / "app não concluiu a verificação"                              | App em *Testing*: adicione o e-mail em **Público-alvo > Usuários de teste** (ou publique o app).                                                                                                 |
+| `Nenhuma turma encontrada em que você seja professor(a)`                                  | Você autorizou com uma conta sem turmas (ou só com turmas arquivadas: use `--include-inactive`). Rode `--logout` e autorize com a conta certa.                                                   |
+| API não habilitada (403)                                                                  | Ative a **Google Classroom API** no projeto.                                                                                                                                                     |
+| Autorização expirou após ~7 dias                                                          | App em *Testing*; publique como "In production" ou refaça a autorização (`--logout`).                                                                                                            |
+| O link de autorização termina em erro de conexão com `127.0.0.1`                          | O navegador precisa estar na **mesma máquina** do app e a porta não pode estar bloqueada pelo firewall; refaça o fluxo com `--logout`.                                                           |
+| Criei `--csv relatorios` para uma turma e saiu um arquivo sem extensão                    | Para uma turma o caminho é um **arquivo** (`notas.csv`); use uma **pasta** só com `--all-courses`.                                                                                               |
+| 429 / cota                                                                                | O app tenta de novo com backoff; se persistir, aguarde e execute novamente.                                                                                                                      |
 
 ## 🚀 Como rodar
 
@@ -183,20 +194,20 @@ Nos dois casos, os caminhos relativos (`--csv relatorios`, `--credentials creden
 dotnet run --project ClassroomGradeReport -- --help
 ```
 
-| Opção | Descrição |
-|---|---|
-| `--course <id\|nome>` | Turma (ID ou parte do nome); pula o menu |
-| `--csv <caminho>` | Exporta CSV (`;`, vírgula decimal, UTF-8 com BOM). Para uma turma, `<caminho>` é o **arquivo** (ex.: `notas.csv`); com `--all-courses`, é uma **pasta** |
-| `--xlsx <caminho>` | Exporta Excel (`.xlsx`); pode ser usado junto com `--csv`. Com `--all-courses`, é uma pasta |
-| `--txt <caminho>` | Exporta texto simples (`.txt`, tabela alinhada, UTF-8 com BOM); combina com `--csv`/`--xlsx`. Com `--all-courses`, é uma pasta |
-| `--html <caminho>` | Exporta uma página HTML autocontida (abre em qualquer navegador, sem internet); combina com os demais formatos. Com `--all-courses`, é uma pasta |
-| `--all-courses` | Relatório de todas as turmas, sem menu; com `--csv`, `--xlsx`, `--txt` ou `--html` apontando para uma pasta, gera um arquivo por turma (`Nome-ID.csv` / `.xlsx` / `.txt` / `.html`). Não combina com `--course` |
-| `--include-drafts` | Usa `draftGrade` quando não houver `assignedGrade` |
-| `--missing-as-zero` | Atividade sem nota vale 0 |
-| `--include-inactive` | Inclui turmas não ativas (arquivadas etc.); por padrão só as ACTIVE |
-| `--credentials <caminho>` | Caminho do `credentials.json`. Precedência: `--credentials` → variável `CLASSROOM_CREDENTIALS_PATH` → `%APPDATA%\ClassroomGradeReport\credentials.json` |
-| `--logout` | Apaga o token salvo; a próxima execução pede autorização de novo (útil para trocar de conta) |
-| `-h`, `--help` | Ajuda |
+| Opção                     | Descrição                                                                                                                                                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--course <id\|nome>`     | Turma (ID ou parte do nome); pula o menu                                                                                                                                                                        |
+| `--csv <caminho>`         | Exporta CSV (`;`, vírgula decimal, UTF-8 com BOM). Para uma turma, `<caminho>` é o **arquivo** (ex.: `notas.csv`); com `--all-courses`, é uma **pasta**                                                         |
+| `--xlsx <caminho>`        | Exporta Excel (`.xlsx`); pode ser usado junto com `--csv`. Com `--all-courses`, é uma pasta                                                                                                                     |
+| `--txt <caminho>`         | Exporta texto simples (`.txt`, tabela alinhada, UTF-8 com BOM); combina com `--csv`/`--xlsx`. Com `--all-courses`, é uma pasta                                                                                  |
+| `--html <caminho>`        | Exporta uma página HTML autocontida (abre em qualquer navegador, sem internet); combina com os demais formatos. Com `--all-courses`, é uma pasta                                                                |
+| `--all-courses`           | Relatório de todas as turmas, sem menu; com `--csv`, `--xlsx`, `--txt` ou `--html` apontando para uma pasta, gera um arquivo por turma (`Nome-ID.csv` / `.xlsx` / `.txt` / `.html`). Não combina com `--course` |
+| `--include-drafts`        | Usa `draftGrade` quando não houver `assignedGrade`                                                                                                                                                              |
+| `--missing-as-zero`       | Atividade sem nota vale 0                                                                                                                                                                                       |
+| `--include-inactive`      | Inclui turmas não ativas (arquivadas etc.); por padrão só as ACTIVE                                                                                                                                             |
+| `--credentials <caminho>` | Caminho do `credentials.json`. Precedência: `--credentials` → variável `CLASSROOM_CREDENTIALS_PATH` → `%APPDATA%\ClassroomGradeReport\credentials.json`                                                         |
+| `--logout`                | Apaga o token salvo; a próxima execução pede autorização de novo (útil para trocar de conta)                                                                                                                    |
+| `-h`, `--help`            | Ajuda                                                                                                                                                                                                           |
 
 Exemplos:
 
