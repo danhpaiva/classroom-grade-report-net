@@ -139,7 +139,28 @@ Por isso o app pede o `credentials.json` toda vez que precisa autenticar, e por 
      - `https://www.googleapis.com/auth/classroom.coursework.students.readonly`
    - Em modo *Testing*, adicione seu e-mail como **usuário de teste**.
 4. Em **Credenciais > Criar credenciais**, escolha a API **Google Classroom API** e o tipo de dado **Dados do usuário** (isso cria um *cliente OAuth*; "Dados do aplicativo" criaria uma conta de serviço, que não enxerga suas turmas). No tipo de aplicativo, escolha **App para computador (Desktop app)** — o tipo "Aplicativo da Web" não funciona.
-5. Baixe o JSON e salve como `%APPDATA%\ClassroomGradeReport\credentials.json` (ou aponte outro caminho com `--credentials` ou a variável `CLASSROOM_CREDENTIALS_PATH`).
+5. Baixe o JSON na tela de clientes OAuth e salve como `%APPDATA%\ClassroomGradeReport\credentials.json` (ou aponte outro caminho com `--credentials` ou a variável `CLASSROOM_CREDENTIALS_PATH`).
+
+### 📥 Onde baixar o `credentials.json`
+
+O JSON do cliente OAuth fica na página **Google Auth Platform > Clientes** (não em *Público-alvo*):
+
+```
+https://console.cloud.google.com/auth/clients?project=<ID_DO_PROJETO>
+```
+
+Clique no cliente do tipo **App para computador** e use **Baixar JSON** (ícone de download). Atalhos úteis do mesmo projeto, trocando `<ID_DO_PROJETO>`:
+
+| O que você quer                                                  | Página                                                                       |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Baixar/criar o cliente OAuth (`credentials.json`)                | `https://console.cloud.google.com/auth/clients?project=<ID_DO_PROJETO>`      |
+| Publicar o app ("In production") e gerenciar usuários de teste   | `https://console.cloud.google.com/auth/audience?project=<ID_DO_PROJETO>`     |
+| Escopos de acesso (os 3 `readonly`)                              | `https://console.cloud.google.com/auth/scopes?project=<ID_DO_PROJETO>`       |
+| Ativar a Google Classroom API                                    | `https://console.cloud.google.com/apis/library/classroom.googleapis.com?project=<ID_DO_PROJETO>` |
+
+> A página **Público-alvo** (`/auth/audience`) serve para publicar o app e cadastrar usuários de teste; **ela não tem o botão de baixar o JSON**. O `<ID_DO_PROJETO>` aparece no seletor de projetos do topo do console.
+>
+> **Não achou o botão de baixar, ou o JSON não traz mais o `client_secret`?** Em clientes criados recentemente o Google só mostra o segredo **no momento da criação**. Nesse caso crie um **novo cliente** (**Criar cliente > App para computador**), baixe o JSON na hora e substitua o arquivo local. Depois rode `--logout` para autorizar de novo com a credencial nova.
 
 > **Não precisa de chave de API** (API key) nem de conta de serviço: os dados do Classroom pertencem à conta do usuário e exigem OAuth. Ignore avisos de permissão sobre "Chaves de API". A conta dona do projeto não precisa ser a mesma do Classroom, mas a conta que autoriza no navegador é a que tem as turmas e, em modo *Testing*, precisa estar em **Usuários de teste**.
 
@@ -170,6 +191,7 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `O caminho do arquivo fornecido não existe: ClassroomGradeReport.` (mensagem do `dotnet`) | Você está dentro da pasta do projeto e usou `--project ClassroomGradeReport`. Rode da raiz do repositório ou omita o `--project` (veja [Onde executar os comandos](#onde-executar-os-comandos)). |
 | `Arquivo credentials.json não encontrado`                                                 | Salve o JSON em `%APPDATA%\ClassroomGradeReport\credentials.json` ou use `--credentials <caminho>` / `CLASSROOM_CREDENTIALS_PATH`.                                                               |
+| Preciso baixar o `credentials.json` de novo e não acho o botão                            | Use `https://console.cloud.google.com/auth/clients?project=<ID_DO_PROJETO>` (não a página *Público-alvo*). Se o segredo não aparecer mais, crie um novo cliente. Veja [Onde baixar o credentials.json](#-onde-baixar-o-credentialsjson). |
 | `Erro 403: access_denied` / "app não concluiu a verificação"                              | App em *Testing*: adicione o e-mail em **Público-alvo > Usuários de teste** (ou publique o app).                                                                                                 |
 | `Nenhuma turma encontrada em que você seja professor(a)`                                  | Você autorizou com uma conta sem turmas (ou só com turmas arquivadas: use `--include-inactive`). Rode `--logout` e autorize com a conta certa.                                                   |
 | API não habilitada (403)                                                                  | Ative a **Google Classroom API** no projeto.                                                                                                                                                     |
