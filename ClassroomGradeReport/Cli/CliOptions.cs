@@ -1,7 +1,9 @@
 using ClassroomGradeReport.Errors;
+using ClassroomGradeReport.Reporting;
 
 namespace ClassroomGradeReport.Cli;
 
+/// <summary>Command-line options (see <see cref="HelpText"/> for what each one does).</summary>
 public record CliOptions
 {
     public string? Course { get; init; }
@@ -14,6 +16,9 @@ public record CliOptions
     public bool MissingAsZero { get; init; }
     public bool IncludeInactiveCourses { get; init; }
     public bool AllCourses { get; init; }
+    public string ExamKeyword { get; init; } = "PROVA";
+    public bool ExamsOnly { get; init; }
+    public bool NoExams { get; init; }
     public bool Logout { get; init; }
     public bool ShowHelp { get; init; }
 
@@ -37,12 +42,36 @@ public record CliOptions
           --include-drafts         Usa a nota rascunho (draftGrade) quando não houver nota devolvida (assignedGrade)
           --missing-as-zero        Trata atividade sem nota como 0 (por padrão ela é ignorada e exibida como "-")
           --include-inactive       Inclui turmas que não estão ativas (arquivadas, etc.)
+          --exam-keyword <texto>   Atividades cujo título contém o texto (sem diferenciar maiúsculas/acentos;
+                                   padrão: PROVA) são provas: cada uma gera um relatório próprio, nunca somado
+                                   às demais atividades nem a outras provas. Cada turma (ou o nome do arquivo, com --course)
+                                   ganha uma pasta com Geral/ e Provas/ (uma prova por arquivo)
+          --exams-only             Gera somente os relatórios das provas
+          --no-exams               Não gera relatórios de prova (somente as atividades gerais)
           --credentials <caminho>  Caminho do credentials.json (ou variável CLASSROOM_CREDENTIALS_PATH;
                                    padrão: %APPDATA%\ClassroomGradeReport\credentials.json)
           --logout                 Apaga o token salvo (sair da conta); na próxima execução a autorização é refeita
           -h, --help               Mostra esta ajuda
         """;
 
+    /// <summary>Rejects option combinations that contradict each other.</summary>
+    /// <exception cref="UserFacingException">Two mutually exclusive options were used together.</exception>
+    public void Validate()
+    {
+        if (AllCourses && Course is not null)
+            throw new UserFacingException("Use --course ou --all-courses, não os dois.");
+        if (ExamsOnly && NoExams)
+            throw new UserFacingException("Use --exams-only ou --no-exams, não os dois.");
+    }
+
+    /// <summary>Which reports to build: general activities, exams, or both, using <see cref="ExamKeyword"/>.</summary>
+    public ExamSplit ToExamSplit() => new(ExamKeyword, IncludeGeneral: !ExamsOnly, IncludeExams: !NoExams);
+
+    /// <summary>How grades are computed (drafts, missing grades).</summary>
+    public ReportOptions ToReportOptions() => new(IncludeDrafts, MissingAsZero);
+
+    /// <summary>Parses the command-line arguments.</summary>
+    /// <exception cref="UserFacingException">Unknown option or option without its value.</exception>
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
         var o = new CliOptions();
@@ -64,6 +93,9 @@ public record CliOptions
                 "--txt" => o with { TxtPath = Value() },
                 "--html" => o with { HtmlPath = Value() },
                 "--credentials" => o with { CredentialsPath = Value() },
+                "--exam-keyword" => o with { ExamKeyword = Value() },
+                "--exams-only" => o with { ExamsOnly = true },
+                "--no-exams" => o with { NoExams = true },
                 "--include-drafts" => o with { IncludeDrafts = true },
                 "--missing-as-zero" => o with { MissingAsZero = true },
                 "--include-inactive" => o with { IncludeInactiveCourses = true },

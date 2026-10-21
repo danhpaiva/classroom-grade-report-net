@@ -201,7 +201,10 @@ dotnet run --project ClassroomGradeReport -- --help
 | `--xlsx <caminho>`        | Exporta Excel (`.xlsx`); pode ser usado junto com `--csv`. Com `--all-courses`, é uma pasta                                                                                                                     |
 | `--txt <caminho>`         | Exporta texto simples (`.txt`, tabela alinhada, UTF-8 com BOM); combina com `--csv`/`--xlsx`. Com `--all-courses`, é uma pasta                                                                                  |
 | `--html <caminho>`        | Exporta uma página HTML autocontida (abre em qualquer navegador, sem internet); combina com os demais formatos. Com `--all-courses`, é uma pasta                                                                |
-| `--all-courses`           | Relatório de todas as turmas, sem menu; com `--csv`, `--xlsx`, `--txt` ou `--html` apontando para uma pasta, gera um arquivo por turma (`Nome-ID.csv` / `.xlsx` / `.txt` / `.html`). Não combina com `--course` |
+| `--all-courses`           | Relatório de todas as turmas, sem menu; com `--csv`, `--xlsx`, `--txt` ou `--html` apontando para uma pasta, gera uma pasta por turma (`Nome-ID/Geral/Nome-ID.csv` etc. e `Nome-ID/Provas/`, veja "Provas"). Não combina com `--course` |
+| `--exam-keyword <texto>`  | Atividades cujo título contém o texto (sem diferenciar maiúsculas/acentos; padrão `PROVA`) são **provas**: cada uma tem relatório próprio e nunca é somada às demais atividades nem a outras provas                |
+| `--exams-only`            | Gera somente os relatórios das provas                                                                                                                                                                           |
+| `--no-exams`              | Não gera relatórios de prova (só as atividades gerais)                                                                                                                                                          |
 | `--include-drafts`        | Usa `draftGrade` quando não houver `assignedGrade`                                                                                                                                                              |
 | `--missing-as-zero`       | Atividade sem nota vale 0                                                                                                                                                                                       |
 | `--include-inactive`      | Inclui turmas não ativas (arquivadas etc.); por padrão só as ACTIVE                                                                                                                                             |
@@ -225,6 +228,20 @@ dotnet run --project ClassroomGradeReport -- --course 123456789 --include-drafts
 ```
 
 **Menu de turmas:** sem `--course` nem `--all-courses`, o app lista as suas turmas; escolha com as setas ↑/↓ e **Enter**. Para sair, use **Ctrl+C**.
+
+**Provas:** por padrão, atividades com "PROVA" no título (ex.: `Prova - A1`, `PROVA A02`, `Prova Bimestral`) saem do relatório geral e viram um relatório por prova. Com `--all-courses`, cada turma ganha uma pasta com o geral e as provas separados:
+
+```
+relatorios/
+└── Matemática-123/
+    ├── Geral/
+    │   └── Matemática-123.csv
+    └── Provas/
+        ├── Prova - A1.csv
+        └── Prova - A2.csv
+```
+
+Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao lado dele: `notas/Geral/notas.csv` e `notas/Provas/<prova>.csv`. Provas sem nota máxima (ex.: simulados) são ignoradas, como qualquer atividade sem pontuação.
 
 **Desempenho:** alunos, atividades e entregas de cada turma são buscados ao mesmo tempo, e com `--all-courses` até **3 turmas** carregam em paralelo (limite para respeitar a cota da API); os resultados continuam saindo na ordem original. As páginas de cada lista são lidas em sequência (paginação por `nextPageToken`).
 

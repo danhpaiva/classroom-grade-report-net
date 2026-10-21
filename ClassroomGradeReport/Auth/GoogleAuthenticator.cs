@@ -6,8 +6,10 @@ using Google.Apis.Util.Store;
 
 namespace ClassroomGradeReport.Auth;
 
+/// <summary>Obtains the Google credential used to call the API.</summary>
 public interface IAuthenticator
 {
+    /// <summary>Authorizes the user, reusing the saved token when there is one.</summary>
     Task<UserCredential> AuthorizeAsync(CancellationToken ct);
 }
 
@@ -22,6 +24,10 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
         ClassroomService.Scope.ClassroomCourseworkStudentsReadonly,
     ];
 
+    /// <summary>
+    /// Reads credentials.json and authorizes. An expired/revoked token is deleted and the flow is repeated once.
+    /// </summary>
+    /// <exception cref="UserFacingException">Missing/invalid credentials.json or authorization refused.</exception>
     public async Task<UserCredential> AuthorizeAsync(CancellationToken ct)
     {
         if (!File.Exists(credentialsPath))
@@ -61,6 +67,7 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
         if (Directory.Exists(tokenDir)) Directory.Delete(tokenDir, recursive: true);
     }
 
+    /// <summary>Runs the OAuth flow against the cached token store.</summary>
     private async Task<UserCredential> AuthorizeCoreAsync(GoogleClientSecrets secrets, CancellationToken ct)
     {
         try

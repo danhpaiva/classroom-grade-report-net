@@ -7,6 +7,10 @@ namespace ClassroomGradeReport.Api;
 /// <summary>Retries 429/5xx with exponential backoff and translates Google errors to pt-BR messages.</summary>
 public static class ApiRetry
 {
+    /// <summary>
+    /// Runs <paramref name="call"/>, retrying transient failures (429/5xx) up to <paramref name="maxAttempts"/> times
+    /// with exponential backoff plus jitter. Other Google errors are translated to <see cref="UserFacingException"/>.
+    /// </summary>
     public static async Task<T> ExecuteAsync<T>(
         Func<Task<T>> call, CancellationToken ct, int maxAttempts = 5, TimeSpan? baseDelay = null)
     {
@@ -30,9 +34,11 @@ public static class ApiRetry
         }
     }
 
+    /// <summary>True for quota (429) and server (5xx) errors, which are worth retrying.</summary>
     private static bool IsTransient(GoogleApiException ex) =>
         ex.HttpStatusCode == HttpStatusCode.TooManyRequests || (int)ex.HttpStatusCode >= 500;
 
+    /// <summary>Converts a Google API error into a pt-BR <see cref="UserFacingException"/> with guidance.</summary>
     public static Exception Translate(GoogleApiException ex)
     {
         var text = ex.Error?.Message ?? ex.Message;
