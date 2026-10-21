@@ -6,8 +6,10 @@ using Google.Apis.Util.Store;
 
 namespace ClassroomGradeReport.Auth;
 
+/// <summary>Obtains the Google credential used to call the API.</summary>
 public interface IAuthenticator
 {
+    /// <summary>Authorizes the user, reusing the saved token when there is one.</summary>
     Task<UserCredential> AuthorizeAsync(CancellationToken ct);
 }
 
@@ -20,8 +22,21 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
         ClassroomService.Scope.ClassroomCoursesReadonly,
         ClassroomService.Scope.ClassroomRostersReadonly,
         ClassroomService.Scope.ClassroomCourseworkStudentsReadonly,
+        // Without this scope the API leaves the students' e-mail address empty.
+        ClassroomService.Scope.ClassroomProfileEmails,
     ];
 
+    /// <summary>
+    /// True when the space-separated <paramref name="grantedScopes"/> of a token include every scope the app needs.
+    /// Unknown (null/empty) counts as complete, since some token responses omit the scope list.
+    /// </summary>
+    public static bool HasAllScopes(string? grantedScopes) =>
+        string.IsNullOrWhiteSpace(grantedScopes) || Scopes.All(grantedScopes.Contains);
+
+    /// <summary>
+    /// Reads credentials.json and authorizes. An expired/revoked token is deleted and the flow is repeated once.
+    /// </summary>
+    /// <exception cref="UserFacingException">Missing/invalid credentials.json or authorization refused.</exception>
     public async Task<UserCredential> AuthorizeAsync(CancellationToken ct)
     {
         if (!File.Exists(credentialsPath))
@@ -44,14 +59,14 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
 
         try
         {
-            return await AuthorizeCoreAsync(secrets, ct);
+            return await AuthorizeFreshAsync(secrets, ct);
         }
         catch (TokenResponseException ex) when (ex.Error?.Error == "invalid_grant")
         {
             // Expired/revoked refresh token: drop it and run the flow again once.
             Console.Error.WriteLine("Token expirado ou revogado. Apagando o token salvo e refazendo a autorização...");
             DeleteToken();
-            return await AuthorizeCoreAsync(secrets, ct);
+            return await AuthorizeFreshAsync(secrets, ct);
         }
     }
 
@@ -61,6 +76,26 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
         if (Directory.Exists(tokenDir)) Directory.Delete(tokenDir, recursive: true);
     }
 
+    /// <summary>
+    /// Authorizes and makes sure the access token is usable right now and covers every required scope. A cached token is only refreshed lazily on the
+    /// first API call, so an expired/revoked refresh token would otherwise surface far from here; refreshing eagerly
+    /// lets <see cref="AuthorizeAsync"/> catch <c>invalid_grant</c> and re-run the flow.
+    /// </summary>
+    private async Task<UserCredential> AuthorizeFreshAsync(GoogleClientSecrets secrets, CancellationToken ct)
+    {
+        var credential = await AuthorizeCoreAsync(secrets, ct);
+        await credential.GetAccessTokenForRequestAsync(cancellationToken: ct);
+        if (HasAllScopes(credential.Token.Scope)) return credential;
+
+        // The saved token predates a scope the app now needs (e.g. students' e-mail): authorize again, once.
+        Console.Error.WriteLine("O token salvo não inclui todas as permissões necessárias (ex.: e-mail dos alunos). Refazendo a autorização...");
+        DeleteToken();
+        credential = await AuthorizeCoreAsync(secrets, ct);
+        await credential.GetAccessTokenForRequestAsync(cancellationToken: ct);
+        return credential;
+    }
+
+    /// <summary>Runs the OAuth flow against the cached token store.</summary>
     private async Task<UserCredential> AuthorizeCoreAsync(GoogleClientSecrets secrets, CancellationToken ct)
     {
         try

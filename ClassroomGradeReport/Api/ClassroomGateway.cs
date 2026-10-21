@@ -8,7 +8,7 @@ using Student = ClassroomGradeReport.Domain.Student;
 namespace ClassroomGradeReport.Api;
 
 /// <summary>Thin wrapper over Google.Apis.Classroom.v1. All list calls follow nextPageToken.</summary>
-public sealed class ClassroomGateway(IAuthenticator authenticator) : IClassroomGateway
+public sealed class ClassroomGateway(IAuthenticator authenticator, RetryNotifier retryNotifier) : IClassroomGateway
 {
     // Lazy<Task> guarantees the OAuth flow runs exactly once even when called concurrently.
     private readonly Lazy<Task<ClassroomService>> _service = new(async () =>
@@ -18,27 +18,38 @@ public sealed class ClassroomGateway(IAuthenticator authenticator) : IClassroomG
             ApplicationName = "ClassroomGradeReport",
         }));
 
+    private const int PageSize = 100;
+
+    // Partial responses: ask the API only for the fields the report reads (smaller payloads, faster pages).
+    private const string CourseFields = "courses(id,name,section,courseState),nextPageToken";
+    private const string StudentFields = "students(userId,profile(name(fullName),emailAddress)),nextPageToken";
+    private const string CourseWorkFields = "courseWork(id,title,maxPoints,state),nextPageToken";
+    private const string SubmissionFields = "studentSubmissions(courseWorkId,userId,assignedGrade,draftGrade),nextPageToken";
+
+    /// <summary>Runs an API call with retry/backoff, reporting retries through the notifier.</summary>
+    private Task<T> ExecuteAsync<T>(Func<Task<T>> call, CancellationToken ct) =>
+        ApiRetry.ExecuteAsync(call, ct, onRetry: retryNotifier.Notify);
+
     private Task<ClassroomService> GetServiceAsync(CancellationToken ct) => _service.Value.WaitAsync(ct);
 
+    /// <summary>Lists the courses where the signed-in user is a teacher; <paramref name="activeOnly"/> keeps only ACTIVE ones.</summary>
     public async Task<IReadOnlyList<Course>> ListTeacherCoursesAsync(bool activeOnly, CancellationToken ct)
     {
         var svc = await GetServiceAsync(ct);
-        var result = new List<Course>();
-        string? token = null;
-        do
+        return await FetchAllPagesAsync(async token =>
         {
             var req = svc.Courses.List();
             req.TeacherId = "me";
-            req.PageSize = 100;
+            req.Fields = CourseFields;
+            req.PageSize = PageSize;
             req.PageToken = token;
             if (activeOnly) req.CourseStates = CoursesResource.ListRequest.CourseStatesEnum.ACTIVE;
-            var page = await ApiRetry.ExecuteAsync(() => req.ExecuteAsync(ct), ct);
-            result.AddRange((page.Courses ?? []).Select(c => new Course(c.Id, c.Name ?? "(sem nome)", c.Section, c.CourseState ?? "")));
-            token = page.NextPageToken;
-        } while (!string.IsNullOrEmpty(token));
-        return result;
+            var page = await ExecuteAsync(() => req.ExecuteAsync(ct), ct);
+            return (page.Courses?.Select(c => new Course(c.Id, c.Name ?? "(sem nome)", c.Section, c.CourseState ?? "")), page.NextPageToken);
+        });
     }
 
+    /// <summary>Loads students, assignments and submissions of a course.</summary>
     public async Task<ClassroomData> LoadCourseDataAsync(Course course, CancellationToken ct)
     {
         var svc = await GetServiceAsync(ct);
@@ -50,54 +61,56 @@ public sealed class ClassroomGateway(IAuthenticator authenticator) : IClassroomG
         return new ClassroomData(course, await students, await work, await subs);
     }
 
-    private static async Task<List<Student>> LoadStudentsAsync(ClassroomService svc, string courseId, CancellationToken ct)
+    /// <summary>
+    /// Follows nextPageToken until the API reports no more pages. <paramref name="fetchPage"/> receives the current
+    /// page token (null for the first page) and returns that page's items plus the next token.
+    /// </summary>
+    private static async Task<List<T>> FetchAllPagesAsync<T>(Func<string?, Task<(IEnumerable<T>? Items, string? NextToken)>> fetchPage)
     {
-        var list = new List<Student>();
+        var all = new List<T>();
         string? token = null;
         do
+        {
+            var (items, next) = await fetchPage(token);
+            all.AddRange(items ?? []);
+            token = next;
+        } while (!string.IsNullOrEmpty(token));
+        return all;
+    }
+
+    private Task<List<Student>> LoadStudentsAsync(ClassroomService svc, string courseId, CancellationToken ct) =>
+        FetchAllPagesAsync(async token =>
         {
             var req = svc.Courses.Students.List(courseId);
-            req.PageSize = 100;
+            req.Fields = StudentFields;
+            req.PageSize = PageSize;
             req.PageToken = token;
-            var page = await ApiRetry.ExecuteAsync(() => req.ExecuteAsync(ct), ct);
-            list.AddRange((page.Students ?? []).Select(s =>
-                new Student(s.UserId, s.Profile?.Name?.FullName ?? s.UserId, s.Profile?.EmailAddress)));
-            token = page.NextPageToken;
-        } while (!string.IsNullOrEmpty(token));
-        return list;
-    }
+            var page = await ExecuteAsync(() => req.ExecuteAsync(ct), ct);
+            return (page.Students?.Select(s => new Student(s.UserId, s.Profile?.Name?.FullName ?? s.UserId, s.Profile?.EmailAddress)),
+                page.NextPageToken);
+        });
 
-    private static async Task<List<Assignment>> LoadCourseWorkAsync(ClassroomService svc, string courseId, CancellationToken ct)
-    {
-        var list = new List<Assignment>();
-        string? token = null;
-        do
+    private Task<List<Assignment>> LoadCourseWorkAsync(ClassroomService svc, string courseId, CancellationToken ct) =>
+        FetchAllPagesAsync(async token =>
         {
             var req = svc.Courses.CourseWork.List(courseId);
-            req.PageSize = 100;
+            req.Fields = CourseWorkFields;
+            req.PageSize = PageSize;
             req.PageToken = token;
-            var page = await ApiRetry.ExecuteAsync(() => req.ExecuteAsync(ct), ct);
-            list.AddRange((page.CourseWork ?? []).Select(w =>
-                new Assignment(w.Id, w.Title ?? "(sem título)", w.MaxPoints, w.State ?? "")));
-            token = page.NextPageToken;
-        } while (!string.IsNullOrEmpty(token));
-        return list;
-    }
+            var page = await ExecuteAsync(() => req.ExecuteAsync(ct), ct);
+            return (page.CourseWork?.Select(w => new Assignment(w.Id, w.Title ?? "(sem título)", w.MaxPoints, w.State ?? "")),
+                page.NextPageToken);
+        });
 
-    private static async Task<List<Submission>> LoadSubmissionsAsync(ClassroomService svc, string courseId, CancellationToken ct)
-    {
-        var list = new List<Submission>();
-        string? token = null;
-        do
+    private Task<List<Submission>> LoadSubmissionsAsync(ClassroomService svc, string courseId, CancellationToken ct) =>
+        FetchAllPagesAsync(async token =>
         {
             var req = svc.Courses.CourseWork.StudentSubmissions.List(courseId, "-");
-            req.PageSize = 100;
+            req.Fields = SubmissionFields;
+            req.PageSize = PageSize;
             req.PageToken = token;
-            var page = await ApiRetry.ExecuteAsync(() => req.ExecuteAsync(ct), ct);
-            list.AddRange((page.StudentSubmissions ?? []).Select(s =>
-                new Submission(s.CourseWorkId, s.UserId, s.AssignedGrade, s.DraftGrade)));
-            token = page.NextPageToken;
-        } while (!string.IsNullOrEmpty(token));
-        return list;
-    }
+            var page = await ExecuteAsync(() => req.ExecuteAsync(ct), ct);
+            return (page.StudentSubmissions?.Select(s => new Submission(s.CourseWorkId, s.UserId, s.AssignedGrade, s.DraftGrade)),
+                page.NextPageToken);
+        });
 }

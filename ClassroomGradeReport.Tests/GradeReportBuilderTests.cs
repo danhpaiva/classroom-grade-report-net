@@ -114,6 +114,55 @@ public class GradeReportBuilderTests
         Assert.Equal(50, row.Percentage);
     }
 
+    private static IReadOnlyList<GradeReport> BuildAll(IEnumerable<Assignment> assignments, IEnumerable<Submission> subs, ExamSplit? split = null) =>
+        new GradeReportBuilder().BuildAll(
+            new ClassroomData(Course, [S("u1", "Ana")], assignments.ToList(), subs.ToList()),
+            new ReportOptions(), split ?? new ExamSplit());
+
+    private static Assignment T(string id, string title, double? max = 10) => new(id, title, max, "PUBLISHED");
+
+    [Fact]
+    public void Exams_AreSplitFromGeneral_AndFromEachOther()
+    {
+        var reports = BuildAll(
+            [T("a1", "Atividade 1"), T("p1", "Prova - A1"), T("p2", "PROVA A02"), T("a2", "Atividade 2")],
+            [Sub("a1", "u1", 10), Sub("a2", "u1", 6), Sub("p1", "u1", 4), Sub("p2", "u1", 9)]);
+
+        Assert.Equal(3, reports.Count);
+        Assert.Null(reports[0].ExamTitle);
+        Assert.Equal(["a1", "a2"], reports[0].Columns.Select(c => c.AssignmentId));
+        Assert.Equal(16, reports[0].Rows.Single().Total);
+        Assert.Equal(["Prova - A1", "PROVA A02"], reports.Skip(1).Select(r => r.ExamTitle));
+        Assert.Equal(4, reports[1].Rows.Single().Total);
+        Assert.Equal(9, reports[2].Rows.Single().Total);
+    }
+
+    [Fact]
+    public void ExamKeyword_IsCaseAndAccentInsensitive_AndConfigurable()
+    {
+        Assert.True(new ExamSplit().IsExam("prova bimestral"));
+        Assert.True(new ExamSplit("avaliação").IsExam("AVALIACAO final"));
+        Assert.False(new ExamSplit().IsExam("Trabalho"));
+    }
+
+    [Fact]
+    public void ExamsWithoutMaxPoints_AreIgnored_WithWarning()
+    {
+        var reports = BuildAll([T("a1", "Atividade"), T("s1", "Simulado Prova", null)], []);
+        Assert.Single(reports);
+        Assert.Single(reports[0].Warnings);
+    }
+
+    [Fact]
+    public void Scope_ExamsOnly_AndNoExams()
+    {
+        Assignment[] all = [T("a1", "Atividade"), T("p1", "Prova")];
+        var exams = BuildAll(all, [], new ExamSplit(IncludeGeneral: false));
+        Assert.Equal("Prova", exams.Single().ExamTitle);
+        var general = BuildAll(all, [], new ExamSplit(IncludeExams: false));
+        Assert.Equal(["a1"], general.Single().Columns.Select(c => c.AssignmentId));
+    }
+
     private sealed class DoublePolicy : IGradingPolicy
     {
         public double WeightFor(Assignment assignment) => 2.0;

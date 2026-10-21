@@ -8,11 +8,51 @@ public sealed class GradeReportBuilder(IGradingPolicy? policy = null)
     private static readonly HashSet<string> IgnoredStates = new(StringComparer.OrdinalIgnoreCase) { "DRAFT", "DELETED" };
     private readonly IGradingPolicy _policy = policy ?? new UnweightedGradingPolicy();
 
+    /// <summary>Single report with every valid assignment (no exam split).</summary>
     public GradeReport Build(ClassroomData data, ReportOptions options)
     {
         var warnings = new List<string>();
-        var assignments = new List<Assignment>();
+        return BuildReport(data, data.Course.Name, ValidAssignments(data, warnings), options, warnings, null);
+    }
 
+    /// <summary>
+    /// One general report (non-exam assignments) plus one report per exam, so exams are never summed
+    /// with other activities nor with each other. Warnings are attached to the first report returned.
+    /// </summary>
+    public IReadOnlyList<GradeReport> BuildAll(ClassroomData data, ReportOptions options, ExamSplit split)
+    {
+        var warnings = new List<string>();
+        var valid = ValidAssignments(data, warnings);
+        var exams = valid.Where(a => split.IsExam(a.Title)).ToList();
+        var general = valid.Except(exams).ToList();
+
+        var reports = new List<GradeReport>();
+        if (split.IncludeGeneral && (general.Count > 0 || exams.Count == 0 || !split.IncludeExams))
+            reports.Add(BuildReport(data, data.Course.Name, general, options, [], null));
+        if (split.IncludeExams)
+            reports.AddRange(exams.Select(e =>
+                WithStats(BuildReport(data, $"{data.Course.Name} — {e.Title}", [e], options, [], e.Title))));
+
+        if (reports.Count > 0 && warnings.Count > 0)
+            reports[0] = reports[0] with { Warnings = warnings };
+        return reports;
+    }
+
+    /// <summary>Drops DRAFT/DELETED assignments silently and ungraded ones with a warning.</summary>
+    /// <summary>Adds the class statistics to a single-exam report (none when nobody has a grade).</summary>
+    private static GradeReport WithStats(GradeReport exam)
+    {
+        var grades = exam.Rows.Select(r => r.Cells[0].Grade).OfType<double>().ToList();
+        if (grades.Count == 0) return exam;
+
+        var average = grades.Average();
+        var stats = new ExamStats(grades.Count, exam.Rows.Count, average, grades.Max(), grades.Min(), grades.Count(g => g < average));
+        return exam with { Stats = stats };
+    }
+
+    private static List<Assignment> ValidAssignments(ClassroomData data, List<string> warnings)
+    {
+        var assignments = new List<Assignment>();
         foreach (var a in data.Assignments)
         {
             if (IgnoredStates.Contains(a.State)) continue;
@@ -23,7 +63,14 @@ public sealed class GradeReportBuilder(IGradingPolicy? policy = null)
             }
             assignments.Add(a);
         }
+        return assignments;
+    }
 
+    /// <summary>Builds the rows (one per student) for <paramref name="assignments"/> under the given report title.</summary>
+    private GradeReport BuildReport(
+        ClassroomData data, string title, List<Assignment> assignments, ReportOptions options,
+        List<string> warnings, string? examTitle)
+    {
         var columns = assignments.Select(a => new ReportColumn(a.Id, a.Title, a.MaxPoints!.Value)).ToList();
 
         // Index submissions; submissions from users no longer enrolled are dropped by the student loop.
@@ -36,9 +83,10 @@ public sealed class GradeReportBuilder(IGradingPolicy? policy = null)
             .Select(student => BuildRow(student, assignments, submissions, options))
             .ToList();
 
-        return new GradeReport(data.Course.Name, options, columns, rows, warnings);
+        return new GradeReport(title, options, columns, rows, warnings, examTitle);
     }
 
+    /// <summary>Computes one student's cells and totals; missing grades are not summed unless MissingAsZero is set.</summary>
     private StudentRow BuildRow(
         Student student,
         List<Assignment> assignments,

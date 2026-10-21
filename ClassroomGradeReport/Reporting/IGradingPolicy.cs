@@ -16,3 +16,18 @@ public sealed class UnweightedGradingPolicy : IGradingPolicy
 {
     public double WeightFor(Assignment assignment) => 1.0;
 }
+
+/// <summary>A weight applied to every assignment whose title contains <see cref="Keyword"/>.</summary>
+public record WeightRule(string Keyword, double Weight);
+
+/// <summary>
+/// Weights assignments by title keyword (case/accent-insensitive). The first matching rule wins;
+/// assignments matching no rule keep weight 1.
+/// </summary>
+public sealed class KeywordWeightPolicy(IEnumerable<WeightRule> rules) : IGradingPolicy
+{
+    private readonly IReadOnlyList<WeightRule> _rules = rules.ToList();
+
+    public double WeightFor(Assignment assignment) =>
+        _rules.FirstOrDefault(r => TitleMatcher.Contains(assignment.Title, r.Keyword))?.Weight ?? 1.0;
+}
