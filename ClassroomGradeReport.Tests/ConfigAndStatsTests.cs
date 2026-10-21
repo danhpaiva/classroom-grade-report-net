@@ -128,6 +128,18 @@ public class ConfigAndStatsTests : IDisposable
     }
 
     [Fact]
+    public void HasAllScopes_DetectsTokensThatPredateANewScope()
+    {
+        var all = string.Join(' ', ClassroomGradeReport.Auth.GoogleAuthenticator.Scopes);
+        var old = string.Join(' ', ClassroomGradeReport.Auth.GoogleAuthenticator.Scopes.Where(s => !s.Contains("profile.emails")));
+
+        Assert.True(ClassroomGradeReport.Auth.GoogleAuthenticator.HasAllScopes(all));
+        Assert.False(ClassroomGradeReport.Auth.GoogleAuthenticator.HasAllScopes(old));
+        Assert.True(ClassroomGradeReport.Auth.GoogleAuthenticator.HasAllScopes(null)); // unknown: do not force a new login
+        Assert.Contains(ClassroomGradeReport.Auth.GoogleAuthenticator.Scopes, s => s.EndsWith("classroom.profile.emails"));
+    }
+
+    [Fact]
     public async Task ApiRetry_ExpiredAuthorization_BecomesAFriendlyError()
     {
         var expired = new Google.Apis.Auth.OAuth2.Responses.TokenResponseException(

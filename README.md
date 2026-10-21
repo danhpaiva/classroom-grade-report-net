@@ -137,6 +137,7 @@ Por isso o app pede o `credentials.json` toda vez que precisa autenticar, e por 
      - `https://www.googleapis.com/auth/classroom.courses.readonly`
      - `https://www.googleapis.com/auth/classroom.rosters.readonly`
      - `https://www.googleapis.com/auth/classroom.coursework.students.readonly`
+     - `https://www.googleapis.com/auth/classroom.profile.emails` (preenche o e-mail dos alunos)
    - Em modo *Testing*, adicione seu e-mail como **usuário de teste**.
 4. Em **Credenciais > Criar credenciais**, escolha a API **Google Classroom API** e o tipo de dado **Dados do usuário** (isso cria um *cliente OAuth*; "Dados do aplicativo" criaria uma conta de serviço, que não enxerga suas turmas). No tipo de aplicativo, escolha **App para computador (Desktop app)** — o tipo "Aplicativo da Web" não funciona.
 5. Baixe o JSON na tela de clientes OAuth e salve como `%APPDATA%\ClassroomGradeReport\credentials.json` (ou aponte outro caminho com `--credentials` ou a variável `CLASSROOM_CREDENTIALS_PATH`).
@@ -155,7 +156,7 @@ Clique no cliente do tipo **App para computador** e use **Baixar JSON** (ícone 
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Baixar/criar o cliente OAuth (`credentials.json`)                | `https://console.cloud.google.com/auth/clients?project=<ID_DO_PROJETO>`      |
 | Publicar o app ("In production") e gerenciar usuários de teste   | `https://console.cloud.google.com/auth/audience?project=<ID_DO_PROJETO>`     |
-| Escopos de acesso (os 3 `readonly`)                              | `https://console.cloud.google.com/auth/scopes?project=<ID_DO_PROJETO>`       |
+| Escopos de acesso (os 4 de leitura)                              | `https://console.cloud.google.com/auth/scopes?project=<ID_DO_PROJETO>`       |
 | Ativar a Google Classroom API                                    | `https://console.cloud.google.com/apis/library/classroom.googleapis.com?project=<ID_DO_PROJETO>` |
 
 > A página **Público-alvo** (`/auth/audience`) serve para publicar o app e cadastrar usuários de teste; **ela não tem o botão de baixar o JSON**. O `<ID_DO_PROJETO>` aparece no seletor de projetos do topo do console.
@@ -180,7 +181,7 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 
 ### Segurança e privacidade
 
-- **Somente leitura:** o app pede apenas os 3 escopos `readonly` e não consegue alterar nada no Classroom.
+- **Somente leitura:** o app pede apenas os 4 escopos abaixo (todos de leitura) e não consegue alterar nada no Classroom. O de e-mail serve só para preencher a coluna **E-mail** dos alunos.
 - **Nada sai da máquina** além das chamadas à API do Google. Tokens e notas não são impressos em logs nem mensagens de erro.
 - **Relatórios contêm dados de alunos:** guarde-os em local protegido e não os commite nem os envie a terceiros sem necessidade.
 - Para revogar o acesso por completo: `--logout` (apaga o token local) e remova o app em [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
@@ -202,6 +203,7 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 | Minha prova não aparece                                                                   | O título precisa conter a palavra-chave (padrão `PROVA`; mude com `--exam-keyword`) e a atividade precisa ter pontuação máxima: sem `maxPoints` ela é ignorada com um aviso (ex.: simulados).      |
 | `nenhuma atividade com "PROVA" no título` (com `--exams-only`)                            | A turma não tem provas com esse nome; confira o título no Classroom ou use `--exam-keyword`.                                                                                                      |
 | `Configuração inválida em ...`                                                            | O JSON do `--config` tem erro de sintaxe, ou um peso sem `keyword`/`weight` maior que zero. Veja [Arquivo de configuração](#-arquivo-de-configuração).                                   |
+| A coluna **E-mail** dos alunos vem vazia                                                  | Falta o escopo `classroom.profile.emails`: adicione-o em **Acesso a dados** (`/auth/scopes`) no Google Cloud e autorize de novo (o app detecta o token antigo e refaz a autorização; ou rode `--logout`). Na tela do Google, **marque** a permissão de e-mail. Alunos que escondem o e-mail (ou domínios restritos pelo administrador) podem continuar vazios. |
 | 429 / cota                                                                                | O app tenta de novo com backoff; se persistir, aguarde e execute novamente.                                                                                                                      |
 
 ## 🚀 Como rodar

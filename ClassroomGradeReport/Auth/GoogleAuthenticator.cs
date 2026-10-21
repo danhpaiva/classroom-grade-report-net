@@ -22,7 +22,16 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
         ClassroomService.Scope.ClassroomCoursesReadonly,
         ClassroomService.Scope.ClassroomRostersReadonly,
         ClassroomService.Scope.ClassroomCourseworkStudentsReadonly,
+        // Without this scope the API leaves the students' e-mail address empty.
+        ClassroomService.Scope.ClassroomProfileEmails,
     ];
+
+    /// <summary>
+    /// True when the space-separated <paramref name="grantedScopes"/> of a token include every scope the app needs.
+    /// Unknown (null/empty) counts as complete, since some token responses omit the scope list.
+    /// </summary>
+    public static bool HasAllScopes(string? grantedScopes) =>
+        string.IsNullOrWhiteSpace(grantedScopes) || Scopes.All(grantedScopes.Contains);
 
     /// <summary>
     /// Reads credentials.json and authorizes. An expired/revoked token is deleted and the flow is repeated once.
@@ -68,13 +77,20 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
     }
 
     /// <summary>
-    /// Authorizes and makes sure the access token is usable right now. A cached token is only refreshed lazily on the
+    /// Authorizes and makes sure the access token is usable right now and covers every required scope. A cached token is only refreshed lazily on the
     /// first API call, so an expired/revoked refresh token would otherwise surface far from here; refreshing eagerly
     /// lets <see cref="AuthorizeAsync"/> catch <c>invalid_grant</c> and re-run the flow.
     /// </summary>
     private async Task<UserCredential> AuthorizeFreshAsync(GoogleClientSecrets secrets, CancellationToken ct)
     {
         var credential = await AuthorizeCoreAsync(secrets, ct);
+        await credential.GetAccessTokenForRequestAsync(cancellationToken: ct);
+        if (HasAllScopes(credential.Token.Scope)) return credential;
+
+        // The saved token predates a scope the app now needs (e.g. students' e-mail): authorize again, once.
+        Console.Error.WriteLine("O token salvo não inclui todas as permissões necessárias (ex.: e-mail dos alunos). Refazendo a autorização...");
+        DeleteToken();
+        credential = await AuthorizeCoreAsync(secrets, ct);
         await credential.GetAccessTokenForRequestAsync(cancellationToken: ct);
         return credential;
     }
