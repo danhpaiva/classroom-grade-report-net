@@ -6,10 +6,10 @@ using ClassroomGradeReport.Reporting;
 namespace ClassroomGradeReport.Cli;
 
 /// <summary>
-/// Optional JSON file with default values for the command-line options, plus grade weights by title keyword.
+/// Optional JSON file with default values for the command-line options, plus optional grade weights by title keyword (every assignment has weight 1 unless a rule says otherwise).
 /// Anything given on the command line overrides the file. Example:
 /// <code>
-/// { "examKeyword": "Prova", "csv": "relatorios", "weights": [ { "keyword": "Trabalho", "weight": 2 } ] }
+/// { "examKeyword": "Prova", "csv": "relatorios", "weights": [ { "keyword": "Trabalho", "weight": 1 } ] }
 /// </code>
 /// </summary>
 public sealed record AppConfig

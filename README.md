@@ -14,8 +14,11 @@
 ![Plataforma](https://img.shields.io/badge/plataforma-Windows-0078D6?logo=windows&logoColor=white)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-yellow.svg)](LICENSE)
 
+[Início rápido](#-início-rápido) •
 [Exemplo](#-exemplo-de-saída) •
-[Configuração](#-configuração-no-google-cloud) •
+[Provas](#-provas) •
+[Configuração](#-arquivo-de-configuração) •
+[Google Cloud](#-configuração-no-google-cloud) •
 [Como rodar](#-como-rodar) •
 [Problemas?](#-solução-de-problemas) •
 [Testes](#-testes)
@@ -30,7 +33,10 @@
 - 🧮 Uma linha por aluno, uma coluna por atividade, com **total**, **total possível** e **percentual**.
 - 🚫 *Sem nota não é zero*: aparece como `-` (ou use `--missing-as-zero`).
 - 📝 Notas devolvidas (`assignedGrade`) por padrão; rascunhos opcionais com `--include-drafts`.
-- 📁 Exporta **CSV** pronto para o Excel pt-BR (`;`, vírgula decimal, UTF-8 com BOM), **Excel (`.xlsx`)** com números reais e formatação, **texto (`.txt`)** alinhado e/ou **página HTML** autocontida, inclusive um arquivo por turma.
+- 🧪 **Provas separadas:** atividades com "PROVA" no título (A1, A2…) nunca são somadas às demais nem entre si; cada uma tem relatório próprio, com **estatísticas da turma** (média, maior, menor, abaixo da média). Veja [Provas](#-provas).
+- ⚖️ **Pesos por palavra no título** e padrões das opções em um [arquivo de configuração](#-arquivo-de-configuração) JSON opcional.
+- 📁 Exporta **CSV** pronto para o Excel pt-BR (`;`, vírgula decimal, UTF-8 com BOM), **Excel (`.xlsx`)** com números reais e formatação, **texto (`.txt`)** alinhado e/ou **página HTML** autocontida, organizados em uma pasta por turma (`Geral/` e `Provas/`).
+- ⏱️ Carrega várias turmas em paralelo, com barra de progresso, respostas parciais da API (`fields`) e cancelamento das demais se uma falhar.
 - 🔒 **Somente leitura**: nenhum escopo de escrita; nada sai da máquina além das chamadas ao Google.
 - 🔁 Paginação completa, retry com backoff para 429/5xx e mensagens de erro claras em português.
 - 🧩 Cálculo puro e testável, com ponto de extensão para pesos/categorias (`IGradingPolicy`).
@@ -42,24 +48,27 @@
 - Uma conta Google com turmas no Classroom em que você é **professor(a)**.
 - Um projeto no Google Cloud com a credencial OAuth (veja a seção "Configuração no Google Cloud").
 
-## Criar credenciais
-> https://console.cloud.google.com/
-> https://console.cloud.google.com/apis/api/classroom.googleapis.com/credentials?project=consumerclassroom
-
-- Ajude-me a escolher
-- Dados do Usuario
-- Salvar e continuar
-- Id do cliente: app para computador
-- Baixar suas credenciais
-> Download this credential information in JSON format. Elas estarão sempre disponíveis para você na página de credenciais .
-
-Para obter o código e compilar:
+## 🚀 Início rápido
 
 ```bash
 git clone https://github.com/danhpaiva/classroom-grade-report-net.git
 cd classroom-grade-report-net
 dotnet build
 ```
+
+1. Crie a credencial OAuth no Google Cloud e salve em `%APPDATA%\ClassroomGradeReport\credentials.json` (passo a passo em [Configuração no Google Cloud](#-configuração-no-google-cloud)).
+2. Rode e escolha a turma no menu:
+
+   ```bash
+   dotnet run --project ClassroomGradeReport
+   ```
+
+3. Na primeira vez o app imprime um link; abra-o no navegador com a conta que tem as turmas e autorize ([Autorização](#-autorização-primeira-execução)).
+4. Para gerar arquivos de todas as turmas (geral + provas separadas):
+
+   ```bash
+   dotnet run --project ClassroomGradeReport -- --all-courses --csv relatorios --xlsx relatorios
+   ```
 
 ## 🖥️ Exemplo de saída
 
@@ -76,16 +85,36 @@ Critério de nota: somente assignedGrade (nota devolvida); sem nota ('-') não �
 2 aluno(s), 2 atividade(s).
 ```
 
+Cada prova sai em um relatório próprio, com as estatísticas da turma abaixo da tabela:
+
+```
+Turma: Matemática 9A — Prova A1
+╭────────────┬──────────┬───────┬──────────┬────────╮
+│ Aluno      │ Prova A1 │ Total │ Possível │      % │
+│            │ (/10)    │       │          │        │
+├────────────┼──────────┼───────┼──────────┼────────┤
+│ Ana Souza  │        4 │     4 │       10 │  40,0% │
+│ Bruno Lima │       10 │    10 │       10 │ 100,0% │
+╰────────────┴──────────┴───────┴──────────┴────────╯
+2 aluno(s), 1 atividade(s).
+Avaliados: 2 de 2 aluno(s)
+Média da turma: 7
+Maior nota: 10
+Menor nota: 4
+Abaixo da média: 1 aluno(s)
+```
+
 ## 📐 Regras de cálculo
 
 - **Nota considerada:** por padrão, `assignedGrade` (nota já devolvida ao aluno). Com `--include-drafts`, usa `draftGrade` quando `assignedGrade` estiver ausente. O critério usado aparece no cabeçalho do relatório.
 - **Sem nota não é zero:** aparece como `-` e não entra na soma. O **total possível** de cada aluno soma o `maxPoints` apenas das atividades *com nota* para ele. Com `--missing-as-zero`, atividade sem nota vale 0 e o `maxPoints` entra no total possível.
-- Atividades sem `maxPoints` (ou 0) são ignoradas com um aviso; atividades em `DRAFT`/`DELETED` são ignoradas.
+- Atividades sem `maxPoints` (ou 0) são ignoradas com um aviso (inclusive provas, por exemplo simulados); atividades em `DRAFT`/`DELETED` são ignoradas.
+- **Provas não entram no relatório geral** e cada uma é calculada sozinha (veja [Provas](#-provas)).
 - Submissões de alunos que não estão mais na turma são ignoradas.
 - Alunos em ordem alfabética (sem diferenciar acentos/maiúsculas).
 - Só entram atividades **publicadas** (é o que a API lista por padrão) e turmas em que você é **professor(a)** (`teacherId=me`); por padrão, apenas turmas ativas.
 - Percentual = `total / total possível × 100`. Se não houver nenhuma nota para o aluno, o percentual aparece como `-`.
-- A API **não expõe a nota geral** calculada pelo Classroom; a soma é feita por esta aplicação. Pesos/categorias podem ser adicionados implementando `IGradingPolicy` (`Reporting/IGradingPolicy.cs`).
+- A API **não expõe a nota geral** calculada pelo Classroom; a soma é feita por esta aplicação. Pesos por palavra no título podem ser definidos no [arquivo de configuração](#-arquivo-de-configuração); regras mais sofisticadas podem ser adicionadas implementando `IGradingPolicy` (`Reporting/IGradingPolicy.cs`).
 
 ## 🔐 Por que preciso de credenciais?
 
@@ -147,6 +176,10 @@ O token fica em `%APPDATA%\ClassroomGradeReport\token\` e é reutilizado nas exe
 | Autorização expirou após ~7 dias                                                          | App em *Testing*; publique como "In production" ou refaça a autorização (`--logout`).                                                                                                            |
 | O link de autorização termina em erro de conexão com `127.0.0.1`                          | O navegador precisa estar na **mesma máquina** do app e a porta não pode estar bloqueada pelo firewall; refaça o fluxo com `--logout`.                                                           |
 | Criei `--csv relatorios` para uma turma e saiu um arquivo sem extensão                    | Para uma turma o caminho é um **arquivo** (`notas.csv`); use uma **pasta** só com `--all-courses`.                                                                                               |
+| Pedi `--csv notas.csv` e não achei `notas.csv` na pasta                                   | O arquivo fica em `notas/Geral/notas.csv` (e as provas em `notas/Provas/`). Veja [Provas](#-provas).                                                                                              |
+| Minha prova não aparece                                                                   | O título precisa conter a palavra-chave (padrão `PROVA`; mude com `--exam-keyword`) e a atividade precisa ter pontuação máxima: sem `maxPoints` ela é ignorada com um aviso (ex.: simulados).      |
+| `nenhuma atividade com "PROVA" no título` (com `--exams-only`)                            | A turma não tem provas com esse nome; confira o título no Classroom ou use `--exam-keyword`.                                                                                                      |
+| `Configuração inválida em ...`                                                            | O JSON do `--config` tem erro de sintaxe, ou um peso sem `keyword`/`weight` maior que zero. Veja [Arquivo de configuração](#-arquivo-de-configuração).                                   |
 | 429 / cota                                                                                | O app tenta de novo com backoff; se persistir, aguarde e execute novamente.                                                                                                                      |
 
 ## 🚀 Como rodar
@@ -201,7 +234,7 @@ dotnet run --project ClassroomGradeReport -- --help
 | `--xlsx <caminho>`        | Exporta Excel (`.xlsx`); pode ser usado junto com `--csv`. Com `--all-courses`, é uma pasta                                                                                                                     |
 | `--txt <caminho>`         | Exporta texto simples (`.txt`, tabela alinhada, UTF-8 com BOM); combina com `--csv`/`--xlsx`. Com `--all-courses`, é uma pasta                                                                                  |
 | `--html <caminho>`        | Exporta uma página HTML autocontida (abre em qualquer navegador, sem internet); combina com os demais formatos. Com `--all-courses`, é uma pasta                                                                |
-| `--all-courses`           | Relatório de todas as turmas, sem menu; com `--csv`, `--xlsx`, `--txt` ou `--html` apontando para uma pasta, gera uma pasta por turma (`Nome-ID/Geral/Nome-ID.csv` etc. e `Nome-ID/Provas/`, veja "Provas"). Não combina com `--course` |
+| `--all-courses`           | Relatório de todas as turmas, sem menu; os caminhos de exportação são **pastas** e cada turma ganha a sua (veja [Provas](#-provas)). Não combina com `--course`                                    |
 | `--exam-keyword <texto>`  | Atividades cujo título contém o texto (sem diferenciar maiúsculas/acentos; padrão `PROVA`) são **provas**: cada uma tem relatório próprio e nunca é somada às demais atividades nem a outras provas                |
 | `--exams-only`            | Gera somente os relatórios das provas                                                                                                                                                                           |
 | `--no-exams`              | Não gera relatórios de prova (só as atividades gerais)                                                                                                                                                          |
@@ -217,20 +250,35 @@ Exemplos:
 
 ```bash
 dotnet run --project ClassroomGradeReport
+# uma turma: gera notas/Geral/notas.csv e notas/Provas/<prova>.csv
 dotnet run --project ClassroomGradeReport -- --course "Matemática" --csv notas.csv
 dotnet run --project ClassroomGradeReport -- --all-courses --csv relatorios
 # todos os formatos ao mesmo tempo
 dotnet run --project ClassroomGradeReport -- --all-courses --csv relatorios --xlsx relatorios --txt relatorios --html relatorios
-# credencial em outro local (ex.: dentro da pasta do projeto, rodando da raiz do repositório) + todas as turmas + um CSV por turma na pasta "relatorios"
+# credencial em outro local (ex.: dentro da pasta do projeto, rodando da raiz do repositório) + todas as turmas + uma pasta por turma em "relatorios"
 dotnet run --project ClassroomGradeReport -- --credentials ClassroomGradeReport\credenciais.json --all-courses --csv relatorios --xlsx relatorios --txt relatorios
 dotnet run --project ClassroomGradeReport -- --all-courses --include-inactive
+# só as provas, procurando "Avaliação" no título, usando um arquivo de configuração
+dotnet run --project ClassroomGradeReport -- --all-courses --exams-only --exam-keyword "Avaliação" --config config.json --csv relatorios
 dotnet run --project ClassroomGradeReport -- --logout
 dotnet run --project ClassroomGradeReport -- --course 123456789 --include-drafts --missing-as-zero
 ```
 
 **Menu de turmas:** sem `--course` nem `--all-courses`, o app lista as suas turmas; escolha com as setas ↑/↓ e **Enter**. Para sair, use **Ctrl+C**.
 
-**Provas:** por padrão, atividades com "PROVA" no título (ex.: `Prova - A1`, `PROVA A02`, `Prova Bimestral`) saem do relatório geral e viram um relatório por prova. Com `--all-courses`, cada turma ganha uma pasta com o geral e as provas separados:
+## 🧪 Provas
+
+Por padrão, atividades com **"PROVA"** no título (em qualquer posição, sem diferenciar maiúsculas/acentos: `Prova - A1`, `PROVA A02`, `Prova Bimestral`…) são tratadas como provas:
+
+- saem do relatório **geral** (não somam com as outras atividades);
+- cada prova vira **um relatório próprio** (A1 e A2 nunca são somadas entre si);
+- prova **sem pontuação máxima** (ex.: simulado) é ignorada, com um aviso, como qualquer atividade sem `maxPoints`.
+
+Troque a palavra com `--exam-keyword "Avaliação"` (ou `examKeyword` no [arquivo de configuração](#-arquivo-de-configuração)). Use `--exams-only` para gerar só as provas ou `--no-exams` para só o geral.
+
+### Organização dos arquivos
+
+Com `--all-courses`, cada turma ganha uma pasta com o geral e as provas separados:
 
 ```
 relatorios/
@@ -242,11 +290,24 @@ relatorios/
         └── Prova - A2.csv
 ```
 
-Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao lado dele: `notas/Geral/notas.csv` e `notas/Provas/<prova>.csv`. Provas sem nota máxima (ex.: simulados) são ignoradas, como qualquer atividade sem pontuação.
+Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao lado dele: `notas/Geral/notas.csv` e `notas/Provas/<prova>.csv`. Provas com o mesmo título ganham o sufixo ` (2)`, ` (3)`… para não se sobrescreverem, e caracteres inválidos em nomes de arquivo viram `_`.
 
-**Estatísticas por prova:** cada relatório de prova mostra (no console, TXT, HTML e na aba **Critério** do Excel) quantos alunos foram avaliados, a média da turma, a maior e a menor nota e quantos ficaram abaixo da média da turma. Só entram alunos com nota (com `--missing-as-zero`, quem não tem nota conta como 0). O CSV segue só com os dados.
+### Estatísticas por prova
 
-**Arquivo de configuração:** um JSON opcional com os padrões das opções e os pesos das atividades. Comentários e vírgula final são aceitos; o que for passado na linha de comando sempre vence o arquivo.
+Cada relatório de prova mostra, no console, no TXT, no HTML e na aba **Critério** do Excel:
+
+| Estatística     | Significado                                                                        |
+| --------------- | ---------------------------------------------------------------------------------- |
+| Avaliados       | Alunos com nota, de quantos há na turma                                            |
+| Média da turma  | Média das notas dos avaliados                                                      |
+| Maior / menor   | Maior e menor nota                                                                 |
+| Abaixo da média | Avaliados com nota **menor que a média da turma** (não é uma nota de corte como 6) |
+
+Só entram alunos com nota (com `--missing-as-zero`, quem não tem nota conta como 0). O CSV segue só com os dados, sem estatísticas.
+
+## ⚙️ Arquivo de configuração
+
+Um JSON **opcional** com os padrões das opções e os pesos das atividades. É procurado em `%APPDATA%\ClassroomGradeReport\config.json` ou no caminho dado em `--config <caminho>` (se você informar um caminho e ele não existir, é erro). Comentários (`//`) e vírgula final são aceitos. **O que for passado na linha de comando sempre vence o arquivo.**
 
 ```json
 {
@@ -258,27 +319,38 @@ Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao l
   "xlsx": "relatorios",
   "txt": "relatorios",
   "html": "relatorios",
-  "credentials": "C:\caminho\credentials.json",
+  "credentials": "C:\\caminho\\credentials.json",
   "weights": [
-    { "keyword": "Trabalho final", "weight": 3 },
-    { "keyword": "Trabalho", "weight": 2 }
+    { "keyword": "Trabalho", "weight": 1 }
   ]
 }
 ```
 
-`weights` multiplica a nota e a pontuação máxima das atividades cujo título contém a palavra (sem diferenciar maiúsculas/acentos; vale a primeira regra que combinar; sem regra, peso 1). Cada peso precisa de `keyword` e de `weight` maior que zero.
+| Campo                             | Equivale a                                  |
+| --------------------------------- | ------------------------------------------- |
+| `examKeyword`                     | `--exam-keyword`                            |
+| `includeDrafts` / `missingAsZero` | `--include-drafts` / `--missing-as-zero`    |
+| `includeInactive`                 | `--include-inactive`                        |
+| `csv`, `xlsx`, `txt`, `html`      | `--csv`, `--xlsx`, `--txt`, `--html`        |
+| `credentials`                     | `--credentials`                             |
+| `weights`                         | (só no arquivo) pesos por palavra no título |
 
-**Desempenho:** alunos, atividades e entregas de cada turma são buscados ao mesmo tempo, e com `--all-courses` até **3 turmas** carregam em paralelo (limite para respeitar a cota da API), com uma barra de progresso por turma; os relatórios saem na ordem original quando todas terminam. Se uma turma falha, as que ainda carregam são canceladas e o erro real é mostrado. Os pedidos à API usam respostas parciais (`fields`), trazendo só os campos usados. Avisos de nova tentativa (429/5xx) aparecem depois da barra, para não bagunçá-la. As páginas de cada lista são lidas em sequência (paginação por `nextPageToken`).
+**Pesos:** por padrão **toda atividade tem peso 1**: a nota exibida e somada é sempre a nota real lançada para o aluno. `weights` é opcional; se você criar uma regra, ela multiplica a nota **e** a pontuação máxima das atividades cujo título contém a palavra (sem diferenciar maiúsculas/acentos). Vale a **primeira** regra que combinar; sem regra, o peso é 1. Mantenha `weight: 1` (ou omita `weights`) para não alterar nenhuma nota. Cada peso precisa de `keyword` e de `weight` maior que zero. Os pesos valem também para os relatórios de prova.
 
-**Erros e saída:** erros de API 429/5xx são repetidos com backoff exponencial (até 5 tentativas). Mensagens de erro vão em português e o app termina com código `1` (erro), `130` (cancelado com Ctrl+C) ou `0` (sucesso).
+## ⏱️ Desempenho e erros
 
-**Excel (`.xlsx`):** a aba **Notas** tem cabeçalho formatado, linha e colunas de aluno/e-mail congeladas, e **números reais** (dá para somar, ordenar e filtrar; o percentual é uma fração formatada como `0,0%`). Notas ausentes ficam como `-`. A aba **Critério** registra a turma, o critério de nota usado e os avisos. Nomes e títulos são gravados sempre como texto, nunca como fórmula.
+- Alunos, atividades e entregas de cada turma são buscados **ao mesmo tempo**; com `--all-courses`, até **3 turmas** carregam em paralelo (limite para respeitar a cota da API), com uma **barra de progresso** por turma. Os relatórios são impressos e exportados na ordem original quando todas terminam.
+- Se uma turma falha, as que ainda carregam são **canceladas** e o erro real é mostrado.
+- Os pedidos à API usam **respostas parciais** (`fields`), trazendo só os campos usados. As páginas de cada lista são lidas em sequência (`nextPageToken`).
+- Erros 429/5xx são repetidos com **backoff exponencial** (até 5 tentativas); os avisos de nova tentativa aparecem depois da barra, para não bagunçá-la.
+- Mensagens de erro vão em português. Códigos de saída: `0` sucesso, `1` erro, `130` cancelado com Ctrl+C.
 
-**HTML:** página única e autocontida (CSS embutido, sem JavaScript e sem requisições externas, com uma política de segurança de conteúdo restritiva). Tem cabeçalho e coluna de nomes fixos ao rolar, percentual colorido por faixa (≥ 70% verde, ≥ 50% amarelo, abaixo vermelho), tema claro/escuro automático e layout próprio para impressão (Ctrl+P, ou "Salvar como PDF"). Todo texto vindo da API é escapado.
+## 📁 Formatos de saída
 
-**TXT:** cabeçalho com a turma, o critério de nota e os avisos, seguido de uma tabela com colunas alinhadas (nomes à esquerda, números à direita), própria para ler no Bloco de Notas ou colar em e-mails. Notas ausentes aparecem como `-`.
-
-**CSV:** colunas `Aluno`, `E-mail`, uma por atividade (`Título (/máximo)`), `Total`, `Total possível` e `Percentual`. Textos que começam com `=`, `+` ou `@` recebem um `'` na frente para evitar injeção de fórmula no Excel. Os arquivos contêm dados de alunos: o `.gitignore` ignora `*.csv`, `*.xlsx`, `*.txt` e `*.html`; evite gravá-los em pastas sincronizadas ou compartilhadas.
+- **Excel (`.xlsx`):** a aba **Notas** tem cabeçalho formatado, linha e colunas de aluno/e-mail congeladas, e **números reais** (dá para somar, ordenar e filtrar; o percentual é uma fração formatada como `0,0%`). Notas ausentes ficam como `-`. A aba **Critério** registra a turma, o critério de nota usado, os avisos e (nas provas) as estatísticas. Nomes e títulos são gravados sempre como texto, nunca como fórmula.
+- **HTML:** página única e autocontida (CSS embutido, sem JavaScript e sem requisições externas, com uma política de segurança de conteúdo restritiva). Tem cabeçalho e coluna de nomes fixos ao rolar, percentual colorido por faixa (≥ 70% verde, ≥ 50% amarelo, abaixo vermelho), tema claro/escuro automático e layout próprio para impressão (Ctrl+P, ou "Salvar como PDF"). Todo texto vindo da API é escapado.
+- **TXT:** cabeçalho com a turma, o critério de nota e os avisos, seguido de uma tabela com colunas alinhadas (nomes à esquerda, números à direita), própria para ler no Bloco de Notas ou colar em e-mails. Notas ausentes aparecem como `-`.
+- **CSV:** colunas `Aluno`, `E-mail`, uma por atividade (`Título (/máximo)`), `Total`, `Total possível` e `Percentual`. Textos que começam com `=`, `+` ou `@` recebem um `'` na frente para evitar injeção de fórmula no Excel. Os arquivos contêm dados de alunos: o `.gitignore` ignora `*.csv`, `*.xlsx`, `*.txt` e `*.html`; evite gravá-los em pastas sincronizadas ou compartilhadas.
 
 ## ✅ Testes
 
@@ -286,21 +358,30 @@ Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao l
 dotnet test
 ```
 
-Os testes cobrem o cálculo (nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação), o CSV, o Excel, o TXT, o HTML (incluindo escape de texto) e o parser de argumentos, o arquivo de configuração e os pesos, as estatísticas de prova, os caminhos de exportação e o fluxo completo (`ReportRunner`, com um gateway falso: arquivos gerados, cancelamento na primeira falha, avisos de retry). Não chamam a API real.
+Os testes (xUnit) não chamam a API real e cobrem:
+
+- **Cálculo:** nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação, pesos.
+- **Provas:** separação do geral e entre si, palavra-chave (maiúsculas/acentos), escopos `--exams-only`/`--no-exams`, estatísticas.
+- **Saídas:** CSV (incluindo escape de fórmulas), Excel, TXT e HTML (incluindo escape de texto).
+- **CLI e arquivos:** parser de argumentos, validação de opções, arquivo de configuração, caminhos de exportação (`Geral/`, `Provas/`, nomes repetidos).
+- **Fluxo completo** (`ReportRunner`, com um gateway falso): arquivos gerados, cancelamento na primeira falha, Ctrl+C e avisos de retry.
 
 ## 🗂️ Estrutura
 
 ```
 ClassroomGradeReport/
 ├── Program.cs     ponto de entrada enxuto (códigos de saída)
-├── Cli/           App, ReportRunner (fluxo), opções/--help, AppConfig (JSON), Export (caminhos), CourseSelector
+├── Cli/           App (fluxo de entrada), ReportRunner (carrega, calcula, imprime e exporta),
+│                  CliOptions (--help), AppConfig (JSON), Export (formatos e caminhos), CourseSelector
 ├── Auth/          OAuth Desktop (escopos readonly), caminhos, link impresso no console
-├── Api/           cliente fino sobre Google.Apis.Classroom.v1: paginação, `fields`, retry/backoff (RetryNotifier), erros em pt-BR
+├── Api/           cliente fino sobre Google.Apis.Classroom.v1: paginação, `fields`,
+│                  retry/backoff (ApiRetry, RetryNotifier), erros em pt-BR
 ├── Domain/        records: Course, Student, Assignment, Submission
-├── Reporting/     cálculo do relatório (lógica pura, sem I/O), provas, estatísticas e IGradingPolicy (pesos)
+├── Reporting/     cálculo do relatório (lógica pura, sem I/O): GradeReportBuilder, provas (ExamSplit),
+│                  estatísticas, IGradingPolicy (pesos)
 ├── Rendering/     saídas: console (Spectre.Console), CSV, Excel, TXT e HTML
 └── Errors/        exceções com mensagens para o usuário
-ClassroomGradeReport.Tests/   testes xUnit (cálculo e formatos de saída)
+ClassroomGradeReport.Tests/   testes xUnit (cálculo, provas, saídas, CLI/config e fluxo completo)
 ```
 
 Pacotes principais: `Google.Apis.Classroom.v1`, `Google.Apis.Auth`, `Spectre.Console`, `ClosedXML` e `Microsoft.Extensions.DependencyInjection`.
