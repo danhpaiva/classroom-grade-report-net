@@ -21,6 +21,8 @@ public static class TxtReportWriter
 
         sb.AppendLine();
         sb.AppendLine($"{report.Rows.Count} aluno(s), {report.Columns.Count} atividade(s).");
+        if (report.Stats is { } stats)
+            foreach (var line in ReportFormatting.StatsLines(stats)) sb.AppendLine(line);
         return sb.ToString();
     }
 

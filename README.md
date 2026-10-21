@@ -205,6 +205,7 @@ dotnet run --project ClassroomGradeReport -- --help
 | `--exam-keyword <texto>`  | Atividades cujo título contém o texto (sem diferenciar maiúsculas/acentos; padrão `PROVA`) são **provas**: cada uma tem relatório próprio e nunca é somada às demais atividades nem a outras provas                |
 | `--exams-only`            | Gera somente os relatórios das provas                                                                                                                                                                           |
 | `--no-exams`              | Não gera relatórios de prova (só as atividades gerais)                                                                                                                                                          |
+| `--config <caminho>`      | Arquivo JSON com valores padrão e pesos (veja "Arquivo de configuração"). Padrão: `%APPDATA%\ClassroomGradeReport\config.json`, se existir. A linha de comando sobrescreve o arquivo                         |
 | `--include-drafts`        | Usa `draftGrade` quando não houver `assignedGrade`                                                                                                                                                              |
 | `--missing-as-zero`       | Atividade sem nota vale 0                                                                                                                                                                                       |
 | `--include-inactive`      | Inclui turmas não ativas (arquivadas etc.); por padrão só as ACTIVE                                                                                                                                             |
@@ -243,7 +244,31 @@ relatorios/
 
 Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao lado dele: `notas/Geral/notas.csv` e `notas/Provas/<prova>.csv`. Provas sem nota máxima (ex.: simulados) são ignoradas, como qualquer atividade sem pontuação.
 
-**Desempenho:** alunos, atividades e entregas de cada turma são buscados ao mesmo tempo, e com `--all-courses` até **3 turmas** carregam em paralelo (limite para respeitar a cota da API); os resultados continuam saindo na ordem original. As páginas de cada lista são lidas em sequência (paginação por `nextPageToken`).
+**Estatísticas por prova:** cada relatório de prova mostra (no console, TXT, HTML e na aba **Critério** do Excel) quantos alunos foram avaliados, a média da turma, a maior e a menor nota e quantos ficaram abaixo da média da turma. Só entram alunos com nota (com `--missing-as-zero`, quem não tem nota conta como 0). O CSV segue só com os dados.
+
+**Arquivo de configuração:** um JSON opcional com os padrões das opções e os pesos das atividades. Comentários e vírgula final são aceitos; o que for passado na linha de comando sempre vence o arquivo.
+
+```json
+{
+  "examKeyword": "Prova",
+  "includeDrafts": false,
+  "missingAsZero": false,
+  "includeInactive": false,
+  "csv": "relatorios",
+  "xlsx": "relatorios",
+  "txt": "relatorios",
+  "html": "relatorios",
+  "credentials": "C:\caminho\credentials.json",
+  "weights": [
+    { "keyword": "Trabalho final", "weight": 3 },
+    { "keyword": "Trabalho", "weight": 2 }
+  ]
+}
+```
+
+`weights` multiplica a nota e a pontuação máxima das atividades cujo título contém a palavra (sem diferenciar maiúsculas/acentos; vale a primeira regra que combinar; sem regra, peso 1). Cada peso precisa de `keyword` e de `weight` maior que zero.
+
+**Desempenho:** alunos, atividades e entregas de cada turma são buscados ao mesmo tempo, e com `--all-courses` até **3 turmas** carregam em paralelo (limite para respeitar a cota da API), com uma barra de progresso por turma; os relatórios saem na ordem original quando todas terminam. Se uma turma falha, as que ainda carregam são canceladas e o erro real é mostrado. Os pedidos à API usam respostas parciais (`fields`), trazendo só os campos usados. Avisos de nova tentativa (429/5xx) aparecem depois da barra, para não bagunçá-la. As páginas de cada lista são lidas em sequência (paginação por `nextPageToken`).
 
 **Erros e saída:** erros de API 429/5xx são repetidos com backoff exponencial (até 5 tentativas). Mensagens de erro vão em português e o app termina com código `1` (erro), `130` (cancelado com Ctrl+C) ou `0` (sucesso).
 
@@ -261,18 +286,18 @@ Com `--course` e um arquivo (ex.: `notas.csv`), a mesma estrutura é criada ao l
 dotnet test
 ```
 
-Os testes cobrem o cálculo (nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação), o CSV, o Excel, o TXT, o HTML (incluindo escape de texto) e o parser de argumentos. Não chamam a API real.
+Os testes cobrem o cálculo (nota ausente vs. zero, draft vs. assigned, atividades sem `maxPoints`, aluno removido, percentual, ordenação), o CSV, o Excel, o TXT, o HTML (incluindo escape de texto) e o parser de argumentos, o arquivo de configuração e os pesos, as estatísticas de prova, os caminhos de exportação e o fluxo completo (`ReportRunner`, com um gateway falso: arquivos gerados, cancelamento na primeira falha, avisos de retry). Não chamam a API real.
 
 ## 🗂️ Estrutura
 
 ```
 ClassroomGradeReport/
-├── Program.cs     orquestração enxuta (CLI → API → cálculo → saídas)
-├── Cli/           parser dos argumentos e texto do --help
+├── Program.cs     ponto de entrada enxuto (códigos de saída)
+├── Cli/           App, ReportRunner (fluxo), opções/--help, AppConfig (JSON), Export (caminhos), CourseSelector
 ├── Auth/          OAuth Desktop (escopos readonly), caminhos, link impresso no console
-├── Api/           cliente fino sobre Google.Apis.Classroom.v1: paginação, retry/backoff, erros em pt-BR
+├── Api/           cliente fino sobre Google.Apis.Classroom.v1: paginação, `fields`, retry/backoff (RetryNotifier), erros em pt-BR
 ├── Domain/        records: Course, Student, Assignment, Submission
-├── Reporting/     cálculo do relatório (lógica pura, sem I/O) e IGradingPolicy
+├── Reporting/     cálculo do relatório (lógica pura, sem I/O), provas, estatísticas e IGradingPolicy (pesos)
 ├── Rendering/     saídas: console (Spectre.Console), CSV, Excel, TXT e HTML
 └── Errors/        exceções com mensagens para o usuário
 ClassroomGradeReport.Tests/   testes xUnit (cálculo e formatos de saída)

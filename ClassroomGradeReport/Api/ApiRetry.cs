@@ -9,10 +9,11 @@ public static class ApiRetry
 {
     /// <summary>
     /// Runs <paramref name="call"/>, retrying transient failures (429/5xx) up to <paramref name="maxAttempts"/> times
-    /// with exponential backoff plus jitter. Other Google errors are translated to <see cref="UserFacingException"/>.
+    /// with exponential backoff plus jitter, announcing each retry through <paramref name="onRetry"/> (stderr by default). Other Google errors are translated to <see cref="UserFacingException"/>.
     /// </summary>
     public static async Task<T> ExecuteAsync<T>(
-        Func<Task<T>> call, CancellationToken ct, int maxAttempts = 5, TimeSpan? baseDelay = null)
+        Func<Task<T>> call, CancellationToken ct, int maxAttempts = 5, TimeSpan? baseDelay = null,
+        Action<string>? onRetry = null)
     {
         var delay = baseDelay ?? TimeSpan.FromSeconds(1);
         for (var attempt = 1; ; attempt++)
@@ -24,7 +25,7 @@ public static class ApiRetry
             catch (GoogleApiException ex) when (IsTransient(ex) && attempt < maxAttempts)
             {
                 var wait = delay * Math.Pow(2, attempt - 1) + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 250));
-                Console.Error.WriteLine($"API indisponível ou cota excedida ({(int)ex.HttpStatusCode}). Nova tentativa em {wait.TotalSeconds:F0}s...");
+                (onRetry ?? Console.Error.WriteLine)($"API indisponível ou cota excedida ({(int)ex.HttpStatusCode}). Nova tentativa em {wait.TotalSeconds:F0}s...");
                 await Task.Delay(wait, ct);
             }
             catch (GoogleApiException ex)

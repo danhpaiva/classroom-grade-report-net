@@ -1,4 +1,3 @@
-using System.Globalization;
 using ClassroomGradeReport.Domain;
 
 namespace ClassroomGradeReport.Reporting;
@@ -12,12 +11,8 @@ public record ReportOptions(bool IncludeDrafts = false, bool MissingAsZero = fal
 /// </summary>
 public record ExamSplit(string Keyword = "PROVA", bool IncludeGeneral = true, bool IncludeExams = true)
 {
-    private static readonly CompareInfo Compare = new CultureInfo("pt-BR").CompareInfo;
-
     /// <summary>True when <paramref name="title"/> contains the keyword.</summary>
-    public bool IsExam(string title) =>
-        Keyword.Length > 0 &&
-        Compare.IndexOf(title, Keyword, CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0;
+    public bool IsExam(string title) => TitleMatcher.Contains(title, Keyword);
 }
 
 /// <summary>A report column: one assignment and its maximum points.</summary>
@@ -34,6 +29,15 @@ public record StudentRow(
     double TotalPossible,
     double? Percentage);
 
+/// <summary>Class statistics of one exam, over the students who have a grade.</summary>
+/// <param name="Graded">Students with a grade.</param>
+/// <param name="Total">Students in the class.</param>
+/// <param name="Average">Mean grade of the graded students.</param>
+/// <param name="Highest">Highest grade.</param>
+/// <param name="Lowest">Lowest grade.</param>
+/// <param name="BelowAverage">Graded students whose grade is below <paramref name="Average"/>.</param>
+public record ExamStats(int Graded, int Total, double Average, double Highest, double Lowest, int BelowAverage);
+
 /// <summary>A finished report. <c>ExamTitle</c> is set for a per-exam report, null for the general one.</summary>
 public record GradeReport(
     string CourseName,
@@ -41,7 +45,8 @@ public record GradeReport(
     IReadOnlyList<ReportColumn> Columns,
     IReadOnlyList<StudentRow> Rows,
     IReadOnlyList<string> Warnings,
-    string? ExamTitle = null)
+    string? ExamTitle = null,
+    ExamStats? Stats = null)
 {
     public bool IsExam => ExamTitle is not null;
 }

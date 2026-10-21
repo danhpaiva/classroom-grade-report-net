@@ -18,6 +18,9 @@ public static class ConsoleReportRenderer
 
         console.Write(BuildTable(report));
         console.MarkupLine($"[grey]{report.Rows.Count} aluno(s), {report.Columns.Count} atividade(s).[/]");
+        if (report.Stats is { } stats)
+            foreach (var line in ReportFormatting.StatsLines(stats))
+                console.MarkupLine($"[grey]{Markup.Escape(line)}[/]");
     }
 
     /// <summary>Shows an arrow-key menu and returns the chosen course.</summary>

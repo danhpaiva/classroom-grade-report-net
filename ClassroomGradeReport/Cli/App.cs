@@ -12,12 +12,16 @@ public static class App
     /// <summary>Runs the app and returns the process exit code (0 on success).</summary>
     public static async Task<int> RunAsync(IReadOnlyList<string> args, CancellationToken ct)
     {
-        var options = CliOptions.Parse(args);
-        if (options.ShowHelp)
+        var cliOnly = CliOptions.Parse(args);
+        if (cliOnly.ShowHelp)
         {
             Console.WriteLine(CliOptions.HelpText);
             return 0;
         }
+
+        // The config file supplies defaults; whatever is on the command line wins.
+        var config = AppConfig.Load(cliOnly.ConfigPath);
+        var options = CliOptions.Parse(args, config.ToDefaults());
 
         if (options.Logout)
         {
@@ -25,7 +29,7 @@ public static class App
             return 0;
         }
 
-        await using var services = BuildServices(options);
+        await using var services = BuildServices(options, config);
         await services.GetRequiredService<ReportRunner>().RunAsync(options, ct);
         return 0;
     }
@@ -37,12 +41,14 @@ public static class App
         Console.WriteLine("Token apagado. Na próxima execução você poderá autorizar com outra conta.");
     }
 
-    /// <summary>Wires the authenticator, API gateway, report builder, console and runner.</summary>
-    private static ServiceProvider BuildServices(CliOptions options) =>
+    /// <summary>Wires the authenticator, API gateway, grading policy, report builder, console and runner.</summary>
+    private static ServiceProvider BuildServices(CliOptions options, AppConfig config) =>
         new ServiceCollection()
             .AddSingleton<IAuthenticator>(_ => new GoogleAuthenticator(
                 AuthPaths.ResolveCredentials(options.CredentialsPath), AuthPaths.TokenDir))
             .AddSingleton<IClassroomGateway, ClassroomGateway>()
+            .AddSingleton<RetryNotifier>()
+            .AddSingleton(config.ToPolicy())
             .AddSingleton<GradeReportBuilder>()
             .AddSingleton(AnsiConsole.Console)
             .AddSingleton<ReportRunner>()

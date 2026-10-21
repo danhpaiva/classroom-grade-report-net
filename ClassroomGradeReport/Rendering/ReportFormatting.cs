@@ -23,6 +23,16 @@ public static class ReportFormatting
         (o.IncludeDrafts ? "assignedGrade, com draftGrade quando ausente" : "somente assignedGrade (nota devolvida)")
         + (o.MissingAsZero ? "; sem nota = 0" : "; sem nota ('-') não é somada");
 
+    /// <summary>Human-readable lines describing the class statistics of an exam.</summary>
+    public static IEnumerable<string> StatsLines(ExamStats s) =>
+    [
+        $"Avaliados: {s.Graded} de {s.Total} aluno(s)",
+        $"Média da turma: {Number(s.Average)}",
+        $"Maior nota: {Number(s.Highest)}",
+        $"Menor nota: {Number(s.Lowest)}",
+        $"Abaixo da média: {s.BelowAverage} aluno(s)",
+    ];
+
     /// <summary>Safe, unique file name for a course: "{name}-{id}{extension}" (extension includes the dot).</summary>
     public static string FileNameFor(string courseName, string courseId, string extension) =>
         $"{SafeName(courseName, "turma")}-{courseId}{extension}";

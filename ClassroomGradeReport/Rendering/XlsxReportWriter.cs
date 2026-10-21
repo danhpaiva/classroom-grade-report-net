@@ -93,18 +93,26 @@ public static class XlsxReportWriter
         cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
     }
 
-    /// <summary>Second sheet: how the numbers were computed (course, criteria, warnings).</summary>
+    /// <summary>Second sheet: how the numbers were computed (course, criteria, warnings, exam statistics).</summary>
     private static void WriteCriteriaSheet(IXLWorksheet info, GradeReport report)
     {
         Text(info, 1, 1, "Turma");
         Text(info, 1, 2, report.CourseName);
         Text(info, 2, 1, "Critério de nota");
         Text(info, 2, 2, ReportFormatting.Criteria(report.Options));
-        for (var i = 0; i < report.Warnings.Count; i++)
+        var line = 3;
+        foreach (var warning in report.Warnings)
         {
-            Text(info, 3 + i, 1, "Aviso");
-            Text(info, 3 + i, 2, report.Warnings[i]);
+            Text(info, line, 1, "Aviso");
+            Text(info, line++, 2, warning);
         }
+        if (report.Stats is { } stats)
+            foreach (var statLine in ReportFormatting.StatsLines(stats))
+            {
+                var parts = statLine.Split(": ", 2);
+                Text(info, line, 1, parts[0]);
+                Text(info, line++, 2, parts[1]);
+            }
         info.Column(1).Style.Font.Bold = true;
         info.Columns().AdjustToContents();
     }

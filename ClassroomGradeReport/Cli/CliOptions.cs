@@ -12,6 +12,7 @@ public record CliOptions
     public string? TxtPath { get; init; }
     public string? HtmlPath { get; init; }
     public string? CredentialsPath { get; init; }
+    public string? ConfigPath { get; init; }
     public bool IncludeDrafts { get; init; }
     public bool MissingAsZero { get; init; }
     public bool IncludeInactiveCourses { get; init; }
@@ -48,6 +49,9 @@ public record CliOptions
                                    ganha uma pasta com Geral/ e Provas/ (uma prova por arquivo)
           --exams-only             Gera somente os relatórios das provas
           --no-exams               Não gera relatórios de prova (somente as atividades gerais)
+          --config <caminho>       Arquivo JSON com valores padrão e pesos por palavra-chave no título
+                                   (padrão: %APPDATA%\ClassroomGradeReport\config.json, se existir);
+                                   o que vier na linha de comando sobrescreve o arquivo
           --credentials <caminho>  Caminho do credentials.json (ou variável CLASSROOM_CREDENTIALS_PATH;
                                    padrão: %APPDATA%\ClassroomGradeReport\credentials.json)
           --logout                 Apaga o token salvo (sair da conta); na próxima execução a autorização é refeita
@@ -70,11 +74,11 @@ public record CliOptions
     /// <summary>How grades are computed (drafts, missing grades).</summary>
     public ReportOptions ToReportOptions() => new(IncludeDrafts, MissingAsZero);
 
-    /// <summary>Parses the command-line arguments.</summary>
+    /// <summary>Parses the command-line arguments on top of <paramref name="defaults"/> (e.g. from the config file).</summary>
     /// <exception cref="UserFacingException">Unknown option or option without its value.</exception>
-    public static CliOptions Parse(IReadOnlyList<string> args)
+    public static CliOptions Parse(IReadOnlyList<string> args, CliOptions? defaults = null)
     {
-        var o = new CliOptions();
+        var o = defaults ?? new CliOptions();
         for (var i = 0; i < args.Count; i++)
         {
             var arg = args[i];
@@ -93,6 +97,7 @@ public record CliOptions
                 "--txt" => o with { TxtPath = Value() },
                 "--html" => o with { HtmlPath = Value() },
                 "--credentials" => o with { CredentialsPath = Value() },
+                "--config" => o with { ConfigPath = Value() },
                 "--exam-keyword" => o with { ExamKeyword = Value() },
                 "--exams-only" => o with { ExamsOnly = true },
                 "--no-exams" => o with { NoExams = true },

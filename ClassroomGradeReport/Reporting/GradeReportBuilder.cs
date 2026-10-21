@@ -31,7 +31,7 @@ public sealed class GradeReportBuilder(IGradingPolicy? policy = null)
             reports.Add(BuildReport(data, data.Course.Name, general, options, [], null));
         if (split.IncludeExams)
             reports.AddRange(exams.Select(e =>
-                BuildReport(data, $"{data.Course.Name} — {e.Title}", [e], options, [], e.Title)));
+                WithStats(BuildReport(data, $"{data.Course.Name} — {e.Title}", [e], options, [], e.Title))));
 
         if (reports.Count > 0 && warnings.Count > 0)
             reports[0] = reports[0] with { Warnings = warnings };
@@ -39,6 +39,17 @@ public sealed class GradeReportBuilder(IGradingPolicy? policy = null)
     }
 
     /// <summary>Drops DRAFT/DELETED assignments silently and ungraded ones with a warning.</summary>
+    /// <summary>Adds the class statistics to a single-exam report (none when nobody has a grade).</summary>
+    private static GradeReport WithStats(GradeReport exam)
+    {
+        var grades = exam.Rows.Select(r => r.Cells[0].Grade).OfType<double>().ToList();
+        if (grades.Count == 0) return exam;
+
+        var average = grades.Average();
+        var stats = new ExamStats(grades.Count, exam.Rows.Count, average, grades.Max(), grades.Min(), grades.Count(g => g < average));
+        return exam with { Stats = stats };
+    }
+
     private static List<Assignment> ValidAssignments(ClassroomData data, List<string> warnings)
     {
         var assignments = new List<Assignment>();

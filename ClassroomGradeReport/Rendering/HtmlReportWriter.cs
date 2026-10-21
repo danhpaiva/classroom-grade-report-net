@@ -22,6 +22,9 @@ public static class HtmlReportWriter
         AppendTableBody(sb, report);
         sb.AppendLine("</table></div>");
         sb.AppendLine($"<p class=\"meta\">{report.Rows.Count} aluno(s), {report.Columns.Count} atividade(s).</p>");
+        if (report.Stats is { } stats)
+            foreach (var line in ReportFormatting.StatsLines(stats))
+                sb.AppendLine($"<p class=\"meta\">{E(line)}</p>");
         sb.AppendLine("</body>");
         sb.AppendLine("</html>");
         return sb.ToString();
