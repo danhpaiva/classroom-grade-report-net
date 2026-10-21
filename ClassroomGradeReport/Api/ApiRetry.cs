@@ -1,6 +1,7 @@
 using System.Net;
 using ClassroomGradeReport.Errors;
 using Google;
+using Google.Apis.Auth.OAuth2.Responses;
 
 namespace ClassroomGradeReport.Api;
 
@@ -9,7 +10,7 @@ public static class ApiRetry
 {
     /// <summary>
     /// Runs <paramref name="call"/>, retrying transient failures (429/5xx) up to <paramref name="maxAttempts"/> times
-    /// with exponential backoff plus jitter, announcing each retry through <paramref name="onRetry"/> (stderr by default). Other Google errors are translated to <see cref="UserFacingException"/>.
+    /// with exponential backoff plus jitter, announcing each retry through <paramref name="onRetry"/> (stderr by default). Other Google errors, and an expired authorization, are translated to <see cref="UserFacingException"/>.
     /// </summary>
     public static async Task<T> ExecuteAsync<T>(
         Func<Task<T>> call, CancellationToken ct, int maxAttempts = 5, TimeSpan? baseDelay = null,
@@ -31,6 +32,13 @@ public static class ApiRetry
             catch (GoogleApiException ex)
             {
                 throw Translate(ex);
+            }
+            catch (TokenResponseException ex) when (ex.Error?.Error == "invalid_grant")
+            {
+                // Safety net: the session expired in the middle of a run (normally handled when authorizing).
+                throw new UserFacingException(
+                    "A autorização expirou ou foi revogada. Rode com --logout e execute de novo para autorizar outra vez " +
+                    "(com o app do Google Cloud em modo Testing, a autorização expira a cada 7 dias).", ex);
             }
         }
     }

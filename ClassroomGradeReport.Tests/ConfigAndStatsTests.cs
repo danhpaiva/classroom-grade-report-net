@@ -128,6 +128,18 @@ public class ConfigAndStatsTests : IDisposable
     }
 
     [Fact]
+    public async Task ApiRetry_ExpiredAuthorization_BecomesAFriendlyError()
+    {
+        var expired = new Google.Apis.Auth.OAuth2.Responses.TokenResponseException(
+            new Google.Apis.Auth.OAuth2.Responses.TokenErrorResponse { Error = "invalid_grant" });
+
+        var ex = await Assert.ThrowsAsync<UserFacingException>(() =>
+            ApiRetry.ExecuteAsync<int>(() => throw expired, CancellationToken.None));
+
+        Assert.Contains("--logout", ex.Message);
+    }
+
+    [Fact]
     public async Task ApiRetry_AnnouncesEachRetry_ThroughTheCallback()
     {
         var attempts = 0;

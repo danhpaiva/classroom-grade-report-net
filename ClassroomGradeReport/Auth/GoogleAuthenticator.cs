@@ -50,14 +50,14 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
 
         try
         {
-            return await AuthorizeCoreAsync(secrets, ct);
+            return await AuthorizeFreshAsync(secrets, ct);
         }
         catch (TokenResponseException ex) when (ex.Error?.Error == "invalid_grant")
         {
             // Expired/revoked refresh token: drop it and run the flow again once.
             Console.Error.WriteLine("Token expirado ou revogado. Apagando o token salvo e refazendo a autorização...");
             DeleteToken();
-            return await AuthorizeCoreAsync(secrets, ct);
+            return await AuthorizeFreshAsync(secrets, ct);
         }
     }
 
@@ -65,6 +65,18 @@ public sealed class GoogleAuthenticator(string credentialsPath, string tokenDir)
     public void DeleteToken()
     {
         if (Directory.Exists(tokenDir)) Directory.Delete(tokenDir, recursive: true);
+    }
+
+    /// <summary>
+    /// Authorizes and makes sure the access token is usable right now. A cached token is only refreshed lazily on the
+    /// first API call, so an expired/revoked refresh token would otherwise surface far from here; refreshing eagerly
+    /// lets <see cref="AuthorizeAsync"/> catch <c>invalid_grant</c> and re-run the flow.
+    /// </summary>
+    private async Task<UserCredential> AuthorizeFreshAsync(GoogleClientSecrets secrets, CancellationToken ct)
+    {
+        var credential = await AuthorizeCoreAsync(secrets, ct);
+        await credential.GetAccessTokenForRequestAsync(cancellationToken: ct);
+        return credential;
     }
 
     /// <summary>Runs the OAuth flow against the cached token store.</summary>
